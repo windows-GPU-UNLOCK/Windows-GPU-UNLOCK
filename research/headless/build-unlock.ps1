@@ -1,7 +1,15 @@
 # GPL-2.0-only. Isolated exact-platform headless unlock wrapper/child package.
-param([string]$Clang='clang',[string]$LldLink='lld-link',[string]$Python='python',[ValidateSet('b650m-3090fe','b660m-3070ti','b660m-3090ti')][string]$HardwareProfile='b650m-3090fe')
-$hwDefine=switch($HardwareProfile){'b660m-3070ti'{'-DGU_PROFILE_B660M_3070TI'}'b660m-3090ti'{'-DGU_PROFILE_B660M_3090TI'}default{'-DGU_PROFILE_B650M_3090FE'}}
-$hwName=switch($HardwareProfile){'b660m-3070ti'{'ASUS-TUF-GAMING-B660M-E-D4-4003-RTX3070TI'}'b660m-3090ti'{'ASUS-TUF-GAMING-B660M-E-D4-4003-RTX3090TI'}default{'ASUS-TUF-B650M-PLUS-WIFI-3057-RTX3090-FE'}}
+param([string]$Clang='clang',[string]$LldLink='lld-link',[string]$Python='python',[ValidateSet('b650m-3090fe','b660m-3070ti','b660m-3090ti','b760m-3080lhr')][string]$HardwareProfile='b650m-3090fe')
+$hwDefine=switch($HardwareProfile){
+ 'b660m-3070ti'{'-DGU_PROFILE_B660M_3070TI'}
+ 'b660m-3090ti'{'-DGU_PROFILE_B660M_3090TI'}
+ 'b760m-3080lhr'{'-DGU_PROFILE_B760M_3080LHR'}
+ default{'-DGU_PROFILE_B650M_3090FE'}}
+$hwName=switch($HardwareProfile){
+ 'b660m-3070ti'{'ASUS-TUF-GAMING-B660M-E-D4-4003-RTX3070TI'}
+ 'b660m-3090ti'{'ASUS-TUF-GAMING-B660M-E-D4-4003-RTX3090TI'}
+ 'b760m-3080lhr'{'MAXSUN-MS-TERMINATOR-B760M-D4-H7.8G-RTX3080LHR'}
+ default{'ASUS-TUF-B650M-PLUS-WIFI-3057-RTX3090-FE'}}
 $ErrorActionPreference='Stop'
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 . (Join-Path $repo 'internal-boot/install/headless-package.ps1')

@@ -3,10 +3,10 @@
  * Reviewed single-machine profiles. Every write-enabled build compiles for
  * exactly one profile: all hardware identities, display topology and driver
  * fingerprints below are immutable, build-time selected and never read from
- * a user-editable file. Select with -DGU_PROFILE_B650M_3090FE or
- * -DGU_PROFILE_B660M_3070TI; the default is the originally verified machine.
- * Adding a profile here is never sufficient for support: each entry needs
- * its own hardware evidence (see docs/PORTABILITY.en.md stage 4).
+ * a user-editable file. Select exactly one -DGU_PROFILE_* entry below; the
+ * default is the originally verified machine. Adding a profile here is never
+ * sufficient for support: each entry needs its own hardware evidence (see
+ * docs/PORTABILITY.en.md stage 4).
  */
 #pragma once
 
@@ -18,10 +18,10 @@
 #error GPU family and firmware must be derived from the selected machine profile
 #endif
 
-#if (defined(GU_PROFILE_B650M_3090FE) + defined(GU_PROFILE_B660M_3070TI) + defined(GU_PROFILE_B660M_3090TI) + defined(GU_PROFILE_X870_3090TI) + defined(GU_PROFILE_B660PLUS_3060) + defined(GU_PROFILE_LOCAL) + defined(GU_PROFILE_H610M_3060) + defined(GU_PROFILE_PROBE_H610M_3060)) > 1
+#if (defined(GU_PROFILE_B650M_3090FE) + defined(GU_PROFILE_B660M_3070TI) + defined(GU_PROFILE_B660M_3090TI) + defined(GU_PROFILE_B760M_3080LHR) + defined(GU_PROFILE_X870_3090TI) + defined(GU_PROFILE_B660PLUS_3060) + defined(GU_PROFILE_LOCAL) + defined(GU_PROFILE_H610M_3060) + defined(GU_PROFILE_PROBE_H610M_3060)) > 1
 #error Select exactly one machine profile
 #endif
-#if !defined(GU_PROFILE_B650M_3090FE) && !defined(GU_PROFILE_B660M_3070TI) && !defined(GU_PROFILE_B660M_3090TI) && !defined(GU_PROFILE_X870_3090TI) && !defined(GU_PROFILE_B660PLUS_3060) && !defined(GU_PROFILE_LOCAL) && !defined(GU_PROFILE_H610M_3060) && !defined(GU_PROFILE_PROBE_H610M_3060)
+#if !defined(GU_PROFILE_B650M_3090FE) && !defined(GU_PROFILE_B660M_3070TI) && !defined(GU_PROFILE_B660M_3090TI) && !defined(GU_PROFILE_B760M_3080LHR) && !defined(GU_PROFILE_X870_3090TI) && !defined(GU_PROFILE_B660PLUS_3060) && !defined(GU_PROFILE_LOCAL) && !defined(GU_PROFILE_H610M_3060) && !defined(GU_PROFILE_PROBE_H610M_3060)
 #define GU_PROFILE_B650M_3090FE 1
 #endif
 
@@ -41,7 +41,7 @@
  * (aggregate GOP + text-out driver chain; verified on AMI boards without a
  * second display GPU). 0 = nvgop owns the console GOP on the target directly
  * (original verified B650M headless topology). */
-#if defined(GU_PROFILE_B660M_3070TI) || defined(GU_PROFILE_B660M_3090TI) || defined(GU_PROFILE_B660PLUS_3060)
+#if defined(GU_PROFILE_B660M_3070TI) || defined(GU_PROFILE_B660M_3090TI) || defined(GU_PROFILE_B660PLUS_3060) || defined(GU_PROFILE_B760M_3080LHR)
 #define GU_CONSOLE_AGGREGATE 1
 #elif !defined(GU_PROFILE_LOCAL)
 #define GU_CONSOLE_AGGREGATE 0
@@ -148,6 +148,30 @@
 #define GU_RTX_PATH_BYTES \
   2,1,12,0,0xd0,0x41,3,10,0,0,0,0,1,1,6,0,1,1,1,1,6,0,0,0,2,3,8,0,0,3,1,128,127,255,4,0
 #define GU_FIRMWARE_PROFILE GU_FIRMWARE_AMI_X870_F13D
+
+#elif defined(GU_PROFILE_B760M_3080LHR)
+
+/* Maxsun MS-Terminator B760M D4 BIOS H7.8G, i5-12490F (no iGPU),
+ * RTX 3080 10 GB LHR (GA102): hardware-verified headless port (one cold boot,
+ * 2026-10-26). Every value below was captured by the DIAGNOSTIC.EFI probe on
+ * 2026-10-25 and checked against the live graph at preflight, release and
+ * post-unlock. */
+#define GU_PROFILE_NAME "MAXSUN-MS-TERMINATOR-B760M-D4-H7.8G-RTX3080LHR"
+#define GU_BOARD_ID 0x221610deU
+#define GU_BOARD_SUBSYSTEM 0x20007377U
+#define GU_BAR0_BASE 0x80000000ULL
+#define GU_BAR0_END 0x80ffffffULL
+#define GU_DEVICE_MEMORY_SIZE 0x2800U
+#define GU_GPU_FAMILY GU_GPU_FAMILY_GA102
+#define GU_FIRMWARE_PROFILE GU_FIRMWARE_AMI_MAXSUN_H78G
+#define GU_PROM_SHA256 "88a6bce1bd790d3e4c542cccafbbd88a7ef73e2e0bef34310d7e8ed780e56d25"
+#define GU_ROOT_PORT_DEVICE 1U
+#define GU_ROOT_PORT_FUNCTION 0U
+/* 36-byte display device path: ACPI root, PciRoot(0), Pci(1,0), endpoint. */
+#define GU_RTX_PATH_BYTES \
+  2,1,12,0,0xd0,0x41,3,10,0,0,0,0,1,1,6,0,0,1,1,1,6,0,0,0,2,3,8,0,0x40,3,1,128,127,255,4,0
+/* Driver fingerprints (console/combo/EDID/nvgop) live in firmware-profile.h
+ * under GU_FIRMWARE_AMI_MAXSUN_H78G. */
 
 #elif defined(GU_PROFILE_B660M_3070TI)
 
@@ -261,7 +285,17 @@
 #error A non-default target segment is only for a generated local profile
 #endif
 
-/* PCI bus of the RTX (device 0, function 0). Every reviewed profile sits at
+/* B760M/Maxsun ownership-topology allowances: an AMI display-adjacent driver
+ * (binding version 0x1b, image 0x3d200 bytes, boot-services code) holds
+ * BY_DRIVER_EXCLUSIVE DevicePath opens on both GPU handles, and three child
+ * links use the non-standard attribute 0x8. */
+#if defined(GU_PROFILE_B760M_3080LHR)
+#define GU_TOPO_B760M 1
+#else
+#define GU_TOPO_B760M 0
+#endif
+
+/* PCI bus of the RTX (segment 0, device 0, function 0). Every reviewed profile sits at
  * 01:00.0. Only a generated local profile (profile-local.h defines it first) may differ,
  * after its own captures and host tests pass; reviewed profiles keep 1. */
 #ifndef GU_TARGET_BUS

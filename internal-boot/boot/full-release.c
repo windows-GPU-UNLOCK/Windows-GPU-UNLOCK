@@ -11,6 +11,7 @@ static BOOLEAN OwnRecord(EFI_HANDLE Handle,const EFI_OPEN_PROTOCOL_INFORMATION_E
 #include "../unlock/checks.h"
 #include "../unlock/sha256.h"
 #include <Protocol/EdidDiscovered.h>
+#include <Protocol/EdidActive.h>
 #include <IndustryStandard/Acpi.h>
 #if defined(GU_RELEASE_MISMATCH_RESEARCH) && !defined(GU_RELEASE_PARENT_AUDIT)
 #error Released mismatch research requires the host-only parent audit
@@ -24,6 +25,13 @@ static BOOLEAN OwnRecord(EFI_HANDLE Handle,const EFI_OPEN_PROTOCOL_INFORMATION_E
 #endif
 #if defined(GU_HEADLESS_RESEARCH) || defined(GU_AMD_RETAINED_MULTI_DISPLAY)
 #define GU_MULTI_DISPLAY_RELEASE 1
+#endif
+#if GU_TOPO_B760M
+/* B760M topology: stage 3 detaches the EDID runtime, stage 4 detaches the
+ * AMI display-adjacent DevicePath consumer, stage 5 detaches nvidia. */
+#define GU_STAGE_LAST 5
+#else
+#define GU_STAGE_LAST 4
 #endif
 
 static EFI_GUID EdidGuid=EFI_EDID_DISCOVERED_PROTOCOL_GUID;
@@ -264,6 +272,16 @@ static EFI_STATUS FullConsumers(const GRAPH *g) {
   EFI_BOOT_SERVICES *bs=Full.Table->BootServices;
   for(UINTN i=0;i<g->Count;i++) {
     const EDGE *e=&g->Edges[i];if(e->Handle!=PreparedPlan.RtxPci)continue;
+#if GU_TOPO_B760M
+    if(e->Attributes==EFI_OPEN_PROTOCOL_BY_DRIVER_EXCLUSIVE && GuGuidEqual(&e->Protocol,&PathGuid)) {
+      if(e->Agent!=PreparedPlan.ExtraAgent)return EFI_ACCESS_DENIED;
+      continue;
+    }
+    if(GuGuidEqual(&e->Protocol,&PathGuid) && e->Attributes==GU_B760M_EXTRA_ATTR && e->Controller==PreparedPlan.Rtx) {
+      if(e->Count!=1 || !e->Agent)return EFI_ACCESS_DENIED;
+      children++;Full.Children[0]=e->Controller;continue;
+    }
+#endif
     if(e->Count!=1 || !e->Agent)return EFI_ACCESS_DENIED;
     if(GuGuidEqual(&e->Protocol,&PathGuid) && e->Attributes==EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER) {
 #if GU_CONSOLE_MULTI_CHILD
@@ -332,7 +350,19 @@ static EFI_STATUS FullConsumers(const GRAPH *g) {
   if(owners!=1 || children!=1 || Full.NvAgent==Full.Image || Full.NvAgent!=PreparedPlan.NvAgent ||
      Full.Children[0]!=PreparedPlan.Rtx)return EFI_ACCESS_DENIED;
   {
-    EFI_DEVICE_PATH_PROTOCOL *path=NULL;VOID *edid=NULL;
+    EFI_DEVICE_PATH_PROTOCOL *path=NULL;
+#if GU_TOPO_B760M
+    static EFI_GUID EdidActiveGuid=EFI_EDID_ACTIVE_PROTOCOL_GUID;
+    VOID *edid=NULL;
+    EFI_STATUS s=Interface(bs,Full.Children[0],&PathGuid,(VOID **)&path);
+    if(s!=EFI_SUCCESS || !DisplayRoute(path,RtxPath))return EFI_UNSUPPORTED;
+    UINT32 cfg[16];EFI_HANDLE pci=NULL;EFI_PCI_IO_PROTOCOL *io=NULL;
+    s=PciFor(bs,path,1,GU_BOARD_ID,GU_BOARD_SUBSYSTEM,&pci,&io,cfg);
+    if(s!=EFI_SUCCESS || pci!=PreparedPlan.RtxPci || io!=PreparedPlan.RtxIo || !Bytes(cfg,PreparedPlan.RtxConfig,sizeof(cfg)))return EFI_NOT_READY;
+    for(UINTN j=0;j<36;j++)Full.ChildPaths[0][j]=((UINT8 *)path)[j];
+    if(Interface(bs,Full.Children[0],&EdidActiveGuid,&edid)!=EFI_SUCCESS)return EFI_UNSUPPORTED;
+#else
+    VOID *edid=NULL;
     EFI_STATUS s=Interface(bs,Full.Children[0],&PathGuid,(VOID **)&path);
     if(s!=EFI_SUCCESS || !DisplayRoute(path,RtxPath,sizeof(RtxPath)))return EFI_UNSUPPORTED;
     UINT32 cfg[16];EFI_HANDLE pci=NULL;EFI_PCI_IO_PROTOCOL *io=NULL;
@@ -340,9 +370,18 @@ static EFI_STATUS FullConsumers(const GRAPH *g) {
     if(s!=EFI_SUCCESS || pci!=PreparedPlan.RtxPci || io!=PreparedPlan.RtxIo || !Bytes(cfg,PreparedPlan.RtxConfig,sizeof(cfg)))return EFI_NOT_READY;
     for(UINTN j=0;j<sizeof(Full.ChildPaths[0]);j++)Full.ChildPaths[0][j]=((UINT8 *)path)[j];
     if(Interface(bs,Full.Children[0],&EdidGuid,&edid)!=EFI_SUCCESS)return EFI_UNSUPPORTED;
+#endif
   }
   for(UINTN i=0;i<g->Count;i++) {
     const EDGE *e=&g->Edges[i];if(e->Handle!=Full.Children[0])continue;
+#if GU_TOPO_B760M
+    if(e->Attributes==EFI_OPEN_PROTOCOL_BY_DRIVER_EXCLUSIVE && GuGuidEqual(&e->Protocol,&PathGuid)) {
+      if(e->Agent!=PreparedPlan.ExtraAgent)return EFI_ACCESS_DENIED;
+      continue;
+    }
+    if(GuGuidEqual(&e->Protocol,&NvChildPrivateGuid) && e->Attributes==EFI_OPEN_PROTOCOL_BY_DRIVER && e->Controller==Full.Children[0] && e->Agent==PreparedPlan.EdidAgent){Full.EdidAgent=e->Agent;edid++;continue;}
+    if(GuGuidEqual(&e->Protocol,&GopGuid) && e->Attributes==GU_B760M_EXTRA_ATTR && e->Controller==PreparedPlan.Agg && e->Agent==PreparedPlan.ComboAgent){combo++;continue;}
+#endif
     if(e->Count!=1 || !e->Agent)return EFI_ACCESS_DENIED;
     if(GuGuidEqual(&e->Protocol,&EdidGuid) && e->Attributes==EFI_OPEN_PROTOCOL_BY_DRIVER && e->Controller==Full.Children[0] && e->Agent==PreparedPlan.EdidAgent){Full.EdidAgent=e->Agent;edid++;}
     else if(GuGuidEqual(&e->Protocol,&GopGuid) && e->Attributes==EFI_OPEN_PROTOCOL_BY_DRIVER && e->Controller==Full.Children[0] && e->Agent==PreparedPlan.ComboAgent)combo++;
@@ -465,6 +504,18 @@ static EFI_STATUS FullConsumers(const GRAPH *g) {
 }
 #if defined(GU_HEADLESS_RESEARCH) && GU_CONSOLE_AGGREGATE
 /* 0 keep exact, 1 may disappear (tolerated orphan cascade), 2 must be gone. */
+#if GU_TOPO_B760M
+static UINTN EdgeClass(const EDGE *e,UINTN stage) {
+  /* Stage 3: EDID runtime; 4: the AMI DevicePath consumer; 5: nvidia. */
+  if(stage>=3 && e->Agent==PreparedPlan.EdidAgent)return e->Handle==PreparedPlan.Rtx?2:1;
+  if(stage>=4 && e->Agent==PreparedPlan.ExtraAgent)return 2;
+  if(stage>=4 && e->Handle==PreparedPlan.Agg)return 1;
+  if(stage>=5 && (e->Agent==PreparedPlan.NvAgent || e->Agent==PreparedPlan.NvChildAgent))return 2;
+  if(stage>=5 && e->Handle==PreparedPlan.Rtx)return 2;
+  if(stage>=5 && e->Agent==PreparedPlan.ComboAgent)return 2;
+  return 0;
+}
+#else
 static UINTN EdgeClass(const EDGE *e,UINTN stage) {
 #if GU_CONSOLE_MULTI_CHILD
   /* Each child whose EDID has already been detached must be gone; at stage 4
@@ -481,6 +532,7 @@ static UINTN EdgeClass(const EDGE *e,UINTN stage) {
      e->Handle==PreparedPlan.Rtx || (e->Agent==PreparedPlan.ComboAgent && e->Handle!=PreparedPlan.RtxPci)))return 2;
   return 0;
 }
+#endif
 #endif
 static BOOLEAN FullExpected(const GRAPH *g,UINTN stage) {
 #if defined(GU_HEADLESS_RESEARCH) && GU_CONSOLE_AGGREGATE
@@ -648,12 +700,13 @@ static EFI_STATUS RestoreDecode(VOID) {
   if(s==EFI_SUCCESS)s=ReadConfigFull(claimConfig);
   if(s==EFI_SUCCESS && !GuDecodeRestoreMask(Full.Config,claimConfig,&claimMask))s=EFI_NOT_READY;
   if(s==EFI_SUCCESS)s=Snapshot(bs,&claimGraph);
-  if(s==EFI_SUCCESS && !FullExpected(&claimGraph,4))s=EFI_NOT_READY;
+  if(s==EFI_SUCCESS && !FullExpected(&claimGraph,GU_STAGE_LAST))s=EFI_NOT_READY;
 #ifdef GU_RELEASE_PARENT_AUDIT
   if(s==EFI_SUCCESS && !ReleaseAuditBound())s=EFI_NOT_READY;
   if(s==EFI_SUCCESS)s=AuditOwnershipAcquire(&io);
 #else
   if(s==EFI_SUCCESS)s=bs->OpenProtocol(PreparedPlan.RtxPci,&PciGuid,(VOID **)&io,Full.Image,NULL,EFI_OPEN_PROTOCOL_EXCLUSIVE);
+#endif
 #endif
   if(s==EFI_SUCCESS)Full.Owned=TRUE;
 #ifdef GU_RELEASE_PARENT_AUDIT
@@ -696,7 +749,7 @@ static EFI_STATUS RestoreDecode(VOID) {
   if(s==EFI_SUCCESS)s=io->Attributes(io,EfiPciIoAttributeOperationGet,0,&attrs);
   if(s==EFI_SUCCESS && attrs!=expected)s=EFI_NOT_READY;
   if(s==EFI_SUCCESS)s=Snapshot(bs,&claimGraph);
-  if(s==EFI_SUCCESS && !FullExpected(&claimGraph,4))s=EFI_NOT_READY;
+  if(s==EFI_SUCCESS && !FullExpected(&claimGraph,GU_STAGE_LAST))s=EFI_NOT_READY;
 #ifdef GU_RELEASE_PARENT_AUDIT
   if(s==EFI_SUCCESS && !ReleaseAuditBound())s=EFI_NOT_READY;
   if(s==EFI_SUCCESS)s=AuditOwnershipEnable(needed);
@@ -758,12 +811,16 @@ EFI_STATUS GuReleaseGop(EFI_SYSTEM_TABLE *t,EFI_HANDLE image,GU_PREPARE_LOG log,
   if(s==EFI_SUCCESS)s=CapturePermit();
   s=Note("full-release-preflight",s);if(s!=EFI_SUCCESS)return s;
   /* Stage 3 stops the EDID driver on each display child; without one only stage 4 remains. */
-  for(UINTN stage=GU_NO_EDID_DRIVER?4U:3U;stage<=4;stage++) {
+  for(UINTN stage=GU_NO_EDID_DRIVER?4U:3U;stage<=GU_STAGE_LAST;stage++) {
+#if GU_TOPO_B760M
+    /* The AMI DevicePath consumer attaches conditionally; no open, no stage. */
+    if(stage==4 && !PreparedPlan.ExtraAgent)continue;
+#endif
 #ifdef GU_MULTI_DISPLAY_RELEASE
     UINTN repeats=stage==3?Full.ChildCount:1;
     for(UINTN child=0;child<repeats;child++) {
 #endif
-    s=Note(stage==3?"detach-rtx-edid-intent-shared-pointer-pauses":"detach-nvidia-gop-intent",EFI_SUCCESS);
+    s=Note(stage==3?"detach-rtx-edid-intent-shared-pointer-pauses":stage==4?"detach-extra-devicepath-intent":"detach-nvidia-gop-intent",EFI_SUCCESS);
 #ifdef GU_RELEASE_PARENT_AUDIT
     if(s==EFI_SUCCESS)s=ReleaseAuditObserve(FALSE);
 #endif
@@ -778,7 +835,7 @@ EFI_STATUS GuReleaseGop(EFI_SYSTEM_TABLE *t,EFI_HANDLE image,GU_PREPARE_LOG log,
 #else
     EFI_TPL old=bs->RaiseTPL(TPL_NOTIFY);
 #endif
-    if(s==EFI_SUCCESS)s=Profile(stage==3?Full.EdidAgent:Full.NvAgent,stage==3);
+    if(s==EFI_SUCCESS && stage!=4)s=Profile(stage==3?Full.EdidAgent:Full.NvAgent,stage==3);
     if(s==EFI_SUCCESS)s=Snapshot(bs,&g);
     if(s==EFI_SUCCESS && !FullExpected(&g,stage-1))s=EFI_NOT_READY;
 #ifdef GU_MULTI_DISPLAY_RELEASE
@@ -801,17 +858,18 @@ EFI_STATUS GuReleaseGop(EFI_SYSTEM_TABLE *t,EFI_HANDLE image,GU_PREPARE_LOG log,
     disconnect=ReleaseAudit.Disconnect;
 #endif
 #ifdef GU_MULTI_DISPLAY_RELEASE
-    s=disconnect(stage==3?Full.Children[child]:PreparedPlan.RtxPci,stage==3?Full.EdidAgent:Full.NvAgent,NULL);
+    s=disconnect(stage==3?Full.Children[child]:PreparedPlan.RtxPci,
+                               stage==3?Full.EdidAgent:stage==4?PreparedPlan.ExtraAgent:Full.NvAgent,NULL);
     if(s==EFI_SUCCESS && stage==3)Full.EdidDetached++;
 #else
     s=disconnect(stage==3?PreparedPlan.Rtx:PreparedPlan.RtxPci,stage==3?Full.EdidAgent:Full.NvAgent,NULL);
 #endif
-    s=Note(stage==3?"detach-edid-return":"detach-nvidia-return",s);if(s!=EFI_SUCCESS)return s;
+    s=Note(stage==3?"detach-edid-return":stage==4?"detach-extra-devicepath-return":"detach-nvidia-return",s);if(s!=EFI_SUCCESS)return s;
     if(stage==3)s=Alive(t,&PreparedPlan);
-    else {Full.Released=TRUE;s=AmdOnly();}
+    else if(stage==GU_STAGE_LAST){Full.Released=TRUE;s=AmdOnly();}
     if(s==EFI_SUCCESS)s=Snapshot(bs,&g);
     if(s==EFI_SUCCESS && !FullExpected(&g,stage))s=EFI_NOT_READY;
-    s=Note(stage==3?"edid-detach-verified":"nvidia-detach-verified",s);if(s!=EFI_SUCCESS)return s;
+    s=Note(stage==3?"edid-detach-verified":stage==4?"extra-devicepath-detach-verified":"nvidia-detach-verified",s);if(s!=EFI_SUCCESS)return s;
 #ifdef GU_MULTI_DISPLAY_RELEASE
     }
 #endif
@@ -922,7 +980,7 @@ EFI_STATUS GuVerifyReleased(EFI_SYSTEM_TABLE *t,BOOLEAN checkCold) {
     VERIFY_STEP("verify-cold-match",Bytes(cold,Full.Cold,sizeof(cold))?EFI_SUCCESS:EFI_NOT_READY);
   }
   VERIFY_STEP("verify-driver-graph-read",Snapshot(t->BootServices,&g));
-  VERIFY_STEP("verify-driver-graph-match",FullExpected(&g,4)?EFI_SUCCESS:EFI_NOT_READY);
+  VERIFY_STEP("verify-driver-graph-match",FullExpected(&g,GU_STAGE_LAST)?EFI_SUCCESS:EFI_NOT_READY);
   VerifyDiagnostic.Stage="verify-complete";
   return EFI_SUCCESS;
 #undef VERIFY_STEP
