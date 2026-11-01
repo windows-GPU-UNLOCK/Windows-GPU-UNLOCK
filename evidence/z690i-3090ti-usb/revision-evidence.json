@@ -1,0 +1,70 @@
+{
+  "format": 1,
+  "validated_utc_date": "2026-11-01",
+  "source_revision": "5fe72d8ca558534a3d946319464a4807be88bc46",
+  "source_tree": "3f73e99aa4020edff102e4f2b93d6a0627e28328",
+  "upstream_revision": "fd8bbea5b1db991805ffcd7ba84e73fa7867bd8a",
+  "previous_public_revision": "d8a0e00bea196902439d646e402f184f62bc4c63",
+  "hardware_scope": "Original 2026-10-26 exact BIOS 4601 / i9-12900KS / RTX 3090 Ti USB and internal runs only. No hardware test of the merged revision.",
+  "historical_hardware": {
+    "usb": {
+      "HLS000000.TXT": "2650ee1b57321a13063bd61dcde5f95fc59f94cf0e4281d534c346167dd5a062",
+      "REPORT.TXT": "2a3ab8558969fc19c60e6c7594f76bbd026ddccdef27ee732375f8089a3a2f95",
+      "HEADLESS.EFI": "e976d28cef44dca9841c66f1ea18504f4955a9d7248083d911fe878b6c52e7dd",
+      "RTX3090-EXPERIMENTAL-entryLatchedSs1Full-INTERNAL-AUTO-HEADLESS-RESEARCH-USB.EFI": "29729569c613e7fed16303a6b7faa3ccd997473a8edbccc59e704855263e0a64",
+      "source_revision": "4ecda4a45f3028620a7dac4c4c1407b2b594b34a"
+    },
+    "internal": {
+      "HLS000000.TXT": "0fa511e8fb10029ca74000b229d37036af8892424fba293acaa7f21a6430b940",
+      "REPORT.TXT": "d3c1850e605dbc45a283c3466da90e70657a90c5ed8087fd26e2db12728c46cb",
+      "HEADLESS.EFI": "d1acd8440aa10690a9a1b607d43e423145c049d9cb843644ff84ad19a7105ef4",
+      "RTX3090-EXPERIMENTAL-entryLatchedSs1Full-INTERNAL-AUTO-HEADLESS-RESEARCH.EFI": "57697b04acf705b96f3cea1b57b638b35186aa55cdf20a6d6004261b646e72cf",
+      "source_revision": "63e934f"
+    }
+  },
+  "historical_report_sha256": "630533feaadd4bbea7d3ce61faffe659157d3a87a5f4cfc7eae868e92cfbada6",
+  "bf16_results_sha256": "0e3a61bedd7a4800cfd8ef39e2b190a13f2dd33889e166a8542394084c091241",
+  "capture_sha256": "3eb513670d446b5b33c01c7f2eede9a3c048ab27f54880659fd2927e88e06658",
+  "validation_builds": {
+    "usb": {
+      "hardware_tested": false,
+      "partition_identity": "synthetic; never staged or booted",
+      "wrapper_sha256": "e707d107241fc56c61cd309d91fd92ef2b656fa28ede48a6a0f3e2e0c361b7a7",
+      "wrapper_bytes": 39424,
+      "child_sha256": "9d381ab7f4c8dc7adedbfae24cc38a4d2f24480250b2e92df815cc6f495267b0",
+      "child_bytes": 68096,
+      "host_tests_sha256": "0a9f6eba25550c7ea0f1eb9a09e0b02099e14db799ac667612d86fa2f754791b"
+    },
+    "internal": {
+      "hardware_tested": false,
+      "partition_identity": "synthetic; never staged or booted",
+      "wrapper_sha256": "edb403452b9db7ea8f29486e224f076a0e1b61ccb1036aa7c89dacb1e0605e1f",
+      "wrapper_bytes": 38912,
+      "child_sha256": "66427dd6500354ee4376fc8dd8c569f68046e6c1575abb563c728609eafc9053",
+      "child_bytes": 68608,
+      "host_tests_sha256": "0a9f6eba25550c7ea0f1eb9a09e0b02099e14db799ac667612d86fa2f754791b"
+    }
+  },
+  "validation": {
+    "python_profile_tests": 101,
+    "gpu_family_tests": 12,
+    "host_jobs_per_build": 12,
+    "package_checks": 48,
+    "mocked_installer_checks": 18,
+    "expanded_original_profile_definitions_equal": 30,
+    "negative_media": "USB child rejects internal media; internal child rejects wrong GPT GUID and USB before hardware effects",
+    "actual_internal_package": "PowerShell inventory/config/child/EFI validation passed; tampered wrapper refused; restored wrapper passed",
+    "automatic_policy": "rollback and boot-copy attribution passed",
+    "toolchain": "Clang/LLD 20.1.2; PowerShell 7.6.9",
+    "logs_sha256": {
+      "pr57-actual-package.log": "1cc306920f6f4796c6e0efcbe5b697008d0468e172001070e8dd75f1c10e59aa",
+      "pr57-internal.log": "8d8042f389191bd6eab841f44c2805a6ef32a5a79b319448c3314382a1c1731a",
+      "pr57-families.log": "95c2962530f8a75a92b3b4d0199cda55ae691532a97e5a6dd368e9a1ddd4c79e",
+      "pr57-policy.log": "8f840d79ac191d7b945dfd34893de8162e231224039b36a71185844593ec8d2e",
+      "pr57-installer.log": "dd0c42990c8b8a561c5788c1ca865d0ec9a4ac9d150392bdf8fd03b7e76cf401",
+      "pr57-package.log": "12e79b16e3fec5f08fb180793d42c247bf327902cad1711c2414b35af84c98c9",
+      "pr57-usb.log": "7556a068520347aa95f07e1e6386dc0a980409f0fbc108d931a9cba9642abb00",
+      "pr57-python.log": "b10cf29576f1c6968e33056dc1e374add918c78981ea5e3748309a0bd03f3038"
+    }
+  }
+}

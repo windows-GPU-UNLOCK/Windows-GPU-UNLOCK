@@ -2,10 +2,11 @@
 
 **English** | [한국어](COMPATIBILITY.ko.md)
 
-**2026-10-29 issue audit:** [reported setups and profile decisions](CONFIRMED-SETUPS.en.md) · [all 105 issues](ISSUE-AUDIT.en.md). The six fixed profiles below are not the full list of reported LOCAL successes.
+**2026-10-29 issue audit:** [reported setups and profile decisions](CONFIRMED-SETUPS.en.md) · [all 105 issues](ISSUE-AUDIT.en.md). The seven fixed profiles below are not the full list of reported LOCAL successes.
 
-The current source contains six exact-machine profiles with recorded hardware
-results: three internal headless configurations and three headless USB configurations.
+The current source contains seven exact-machine profiles with recorded hardware
+results: three internal-only configurations, three USB-only configurations, and one
+Z690-I configuration with both routes recorded.
 The original B650M run was performed by the maintainer; B660M, X870 and B660-PLUS evidence
 comes from contributors ([PR #5](https://github.com/impacifist/Windows-GPU-UNLOCK/pull/5),
 [PR #10](https://github.com/impacifist/Windows-GPU-UNLOCK/pull/10),
@@ -25,6 +26,7 @@ generation and its separate contributor reports are described below.
 | `b660plus-3060` | ASUS PRIME B660-PLUS D4 BIOS 3010 / i5-12600KF (no iGPU) / GA104 RTX 3060 12GB | USB only, two display children, CSM off; contributor report |
 | `h610m-3060` | Gigabyte H610M H BIOS FC / i5-14400 (iGPU enabled, no GOP) / Gigabyte GA106 RTX 3060 12GB | USB only, two display children; contributor report |
 | `b660m-3090ti` | ASUS TUF GAMING B660M-E D4 BIOS 4003 / i7-12700F (no iGPU) / Colorful RTX 3090 Ti | Internal; one contributor-reported cold boot |
+| `z690i-3090ti` | ASUS ROG STRIX Z690-I GAMING WIFI BIOS 4601 / i9-12900KS (UHD 770 enabled) / RTX 3090 Ti | USB and internal ESP; [contributor evidence](../evidence/z690i-3090ti-usb/README.md) |
 
 The latest tag is the source-only pre-release v0.3.1; this source tree includes
 later work, including the USB route and X870 profile. Hardware reports describe

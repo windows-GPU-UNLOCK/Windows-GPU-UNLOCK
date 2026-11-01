@@ -18,9 +18,10 @@ def compile_source(source, defines=(), extra=()):
 
 
 class FamilyTests(unittest.TestCase):
-    def test_six_profiles_select_exact_family_chip_and_memory(self):
+    def test_fixed_profiles_select_exact_family_chip_and_memory(self):
         cases = [('B650M_3090FE', 102, 0xb72000a1, 0x6000),
                  ('X870_3090TI', 102, 0xb72000a1, 0x5ff4),
+                 ('Z690I_3090TI', 102, 0xb72000a1, 0x5ff4),
                  ('B660M_3090TI', 102, 0xb72000a1, 0x5ff4),
                  ('B660M_3070TI', 104, 0xb74000a1, 0x2000),
                  ('B660PLUS_3060', 104, 0xb74000a1, 0x3000),
