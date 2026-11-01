@@ -23,7 +23,7 @@ def main():
            '-I',str(ROOT/'deps/edk2/MdePkg/Include'),'-I',str(ROOT/'deps/edk2/MdePkg/Include/X64')]
     core=[UNLOCK/name for name in ('port.c','compat.c','vendor/unlock_610.c','vendor/prep_610.c',
         'vendor/layout_610.c','vendor/vbios_610.c','vendor/gfw_eval.c')]
-    profiles=('B650M_3090FE','B660M_3070TI','B660M_3090TI','X870_3090TI','B660PLUS_3060','H610M_3060')
+    profiles=('B650M_3090FE','B660M_3070TI','B660M_3090TI','X870_3090TI','B660PLUS_3060','H610M_3060','B550_3060')
     variants=(('default-host',('-UGU_INTERNAL_BOOT',)),('manual',()),('automatic',('-DGU_AUTOMATIC_BOOT',)),
               ('headless',('-DGU_AUTOMATIC_BOOT','-DGU_HEADLESS_RESEARCH')),
               ('usb',('-DGU_AUTOMATIC_BOOT','-DGU_HEADLESS_RESEARCH','-DGU_USB_MEDIA')))

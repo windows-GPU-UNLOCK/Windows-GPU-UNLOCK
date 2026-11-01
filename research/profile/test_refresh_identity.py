@@ -15,7 +15,7 @@ def main():
     if out.exists():parser.error('Output must be a new directory')
     out.mkdir(parents=True)
     results=[]
-    for profile in ('B650M_3090FE','B660M_3070TI','B660M_3090TI','X870_3090TI','B660PLUS_3060','H610M_3060'):
+    for profile in ('B650M_3090FE','B660M_3070TI','B660M_3090TI','X870_3090TI','B660PLUS_3060','H610M_3060','B550_3060'):
         for headless in (False,True):
             name=profile+('-headless' if headless else '-manual');exe=out/(name+'.exe')
             command=[args.clang,'-std=c11','-O1','-Wall','-Wextra','-Werror','-D_CRT_SECURE_NO_WARNINGS',

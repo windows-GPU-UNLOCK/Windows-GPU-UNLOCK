@@ -36,7 +36,7 @@ def main():
     cases += [(p,'test_probe.c',['-DGU_DIAGNOSTIC_PROBE','-DGU_PROFILE_'+p]) for p in
               ('B650M_3090FE','B660M_3070TI','B660M_3090TI','X870_3090TI','B660PLUS_3060')]
     cases += [(p,'test_probe_generic.c',['-DGU_DIAGNOSTIC_ONLY','-DGU_DIAGNOSTIC_PROBE','-DGU_USB_MEDIA','-DGU_PROFILE_'+p])
-              for p in ('H610M_3060','PROBE_H610M_3060')]
+              for p in ('H610M_3060','PROBE_H610M_3060','PROBE_B550_3060')]
     cases += [('generic-old','test_probe_generic.c',['-DGU_DIAGNOSTIC_ONLY','-DGU_DIAGNOSTIC_PROBE','-DGU_PROBE_GENERIC','-DGU_PROBE_AUTO_BUS'])]
     for name,source,defines in cases:
         exe=out/(name+'.exe');inputs=[ROOT/'internal-boot/boot'/source]
