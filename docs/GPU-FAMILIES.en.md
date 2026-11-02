@@ -19,7 +19,7 @@ they do not contain a separate unlock implementation for each motherboard.
 
 | Family | Exact chip revision | Currently admitted card/layout combinations |
 |---|---|---|
-| GA102 | `0xb72000a1` | RTX 3090 / 3090 Ti; `0x6000` or `0x5ff4` MiB, still pinned exactly per machine |
+| GA102 | `0xb72000a1` | RTX 3090 / 3090 Ti (`10de:2204` / `10de:2203`) with `0x6000` or `0x5ff4` MiB; RTX 3080 12GB (`10de:220a`) with `0x3000` MiB; still pinned exactly per machine |
 | GA104 | `0xb74000a1` | `10de:2482` / `10de:2484` / `10de:24c9` with `0x2000` MiB; `10de:2487` with `0x3000` MiB |
 | GA106 | `0xb76000a1` | `10de:2504` with `0x3000` MiB |
 
@@ -50,7 +50,10 @@ RTX 3060 Ti `24c910de` / 8 GiB requires its own reviewed `60015` code hash,
 from [issue #105](https://github.com/impacifist/Windows-GPU-UNLOCK/issues/105).
 Its contributor reports one restart-based transaction; current-main hardware qualification remains pending.
 GA104 requires PCI-specific driver pins; a chip-level match cannot substitute for them.
-The existing GA102 combinations remain available. Recognized aggregate and
+The GA102 RTX 3080 12GB `220a10de` / `0x3000` MiB LOCAL tuple requires the
+reviewed nvgop `60010` code hash. Its [issue #73 evidence](../evidence/b550-3080-12gb-local/README.md)
+includes a DisplayPort recovery limitation; this admission does not extend to
+other RTX 3080 or RTX 3080 Ti cards. Recognized aggregate and
 non-aggregate LOCAL topologies require all 22 host jobs, including fresh PCI identity, input policy
 and the topology-specific complete driver-release replay. Generated profiles are experimental candidates, not
 new physical compatibility reports.
