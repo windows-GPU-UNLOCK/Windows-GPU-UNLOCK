@@ -114,6 +114,8 @@ def main():
         'research_only': True, 'hardware_access': False, 'efi_executed': False,
         'correction_build_wired': False, 'readonly_collector_build_wired': True,
         'local_evidence_written': False, 'adapter_host_only': True,
+        'reported_command_cache_pair_fixture_passed': True,
+        'private_capture_replayed': False, 'parent_stop_transition_admitted': False,
         'results': results, 'mutations': mutations,
     }, indent=2))
 

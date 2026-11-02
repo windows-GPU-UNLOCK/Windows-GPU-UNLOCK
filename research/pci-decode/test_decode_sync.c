@@ -85,7 +85,37 @@ static void Refuse(MODEL *m,unsigned writes) {
   Check(Run(m)==GU_DS_REUSED,"same transaction cannot retry");
   Check(m->Disables==before && m->Reads==reads && m->Logs==logs,"retry cannot call firmware or log");
 }
+static void ReportedCommandCachePair(void) {
+  MODEL m;Setup(&m,1,0);
+  /* Issue202's public IDs/command/cache pair; all other config words, handles
+   * and BAR are synthetic. This is not a replay of its private full capture. */
+  m.State.Gpu.Config[0]=0x248410deU;m.State.Gpu.Config[11]=0xf2781569U;
+  m.State.Parents[0].Config[0]=0x14db1022U;
+  m.State.Parents[0].Device=1;m.State.Parents[0].Function=1;
+  m.State.Parents[0].Config[1]=0x00100007U;
+  m.Expected=m.State;
+  GU_DS_SNAPSHOT before=m.State;
+  Check(GuDecodeSnapshotValid(&before),"reported initial pair is a research candidate, not loader admission");
+  Check(Run(&m)==GU_DS_FIXED && m.Disables==1,"research correction only disables stale GPU IO cache bit");
+  Check(m.State.Gpu.Config[1]==0x00100002U && m.State.Gpu.Attributes==GU_DS_MEMORY,
+    "cache-only correction leaves GPU command and memory decode unchanged");
+  Check(GuDecodeSnapshotMatches(&m.State,&before,TRUE),"all parent config/cache fields preserved by cache-only correction");
+
+  Setup(&m,1,0);m.State=m.Expected=before;
+  m.State.Parents[0].Config[1]=0x00100003U;m.State.Parents[0].Attributes=GU_DS_IO|GU_DS_MEMORY;
+  Check(GuDecodeSnapshotValid(&m.State),"matching parent command/cache is locally consistent");
+  Check(!GuDecodeSnapshotMatches(&m.State,&before,FALSE) && !GuDecodeSnapshotMatches(&m.State,&before,TRUE),
+    "parent BME clearing is still drift from the pinned baseline");
+  Refuse(&m,0);Check(!m.Transaction.Attempted,"parent-only Stop transition cannot trigger correction");
+
+  Setup(&m,1,0);m.State=m.Expected=before;
+  m.State.Gpu.Config[1]=0x00100000U;m.State.Gpu.Attributes=0;
+  m.State.Parents[0].Config[1]=0x00100003U;m.State.Parents[0].Attributes=GU_DS_IO|GU_DS_MEMORY;
+  Check(!GuDecodeSnapshotValid(&m.State),"reported stopped GPU lacks the memory decode required by cache-sync input");
+  Refuse(&m,0);Check(!m.Transaction.Attempted,"reported stopped pair is not silently treated as cache-only correction");
+}
 int main(void) {
+  ReportedCommandCachePair();
   MODEL m;
   const UINT32 cards[]={0x220410de,0x220310de,0x248410de,0x248710de,0x250410de};
   for(unsigned parents=1;parents<=GU_DS_MAX_PARENTS;parents++)for(unsigned seg=0;seg<3;seg++) {
