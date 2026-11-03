@@ -355,9 +355,9 @@ static EFI_STATUS FullConsumers(const GRAPH *g) {
     static EFI_GUID EdidActiveGuid=EFI_EDID_ACTIVE_PROTOCOL_GUID;
     VOID *edid=NULL;
     EFI_STATUS s=Interface(bs,Full.Children[0],&PathGuid,(VOID **)&path);
-    if(s!=EFI_SUCCESS || !DisplayRoute(path,RtxPath))return EFI_UNSUPPORTED;
+    if(s!=EFI_SUCCESS || !DisplayRoute(path,RtxPath,sizeof(RtxPath)))return EFI_UNSUPPORTED;
     UINT32 cfg[16];EFI_HANDLE pci=NULL;EFI_PCI_IO_PROTOCOL *io=NULL;
-    s=PciFor(bs,path,1,GU_BOARD_ID,GU_BOARD_SUBSYSTEM,&pci,&io,cfg);
+    s=PciFor(bs,path,GU_TARGET_SEGMENT,GU_TARGET_BUS,GU_BOARD_ID,GU_BOARD_SUBSYSTEM,&pci,&io,cfg);
     if(s!=EFI_SUCCESS || pci!=PreparedPlan.RtxPci || io!=PreparedPlan.RtxIo || !Bytes(cfg,PreparedPlan.RtxConfig,sizeof(cfg)))return EFI_NOT_READY;
     for(UINTN j=0;j<36;j++)Full.ChildPaths[0][j]=((UINT8 *)path)[j];
     if(Interface(bs,Full.Children[0],&EdidActiveGuid,&edid)!=EFI_SUCCESS)return EFI_UNSUPPORTED;
