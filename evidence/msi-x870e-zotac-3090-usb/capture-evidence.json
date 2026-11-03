@@ -1,0 +1,198 @@
+{
+  "format": "capture-evidence-1",
+  "reporter_version": 1,
+  "status": "candidate",
+  "hardware_tested": false,
+  "write_eligible": false,
+  "unlock_proven": false,
+  "source_revision": {
+    "value": "fd8bbea5b1db991805ffcd7ba84e73fa7867bd8a",
+    "basis": "operator-supplied",
+    "verified": false
+  },
+  "installed_tool_sources": [
+    {
+      "path": "report-evidence.py",
+      "sha256": "0405d7df947fe0ab9ce2d5e7d4e5ee50068977436cfaa2f4627c8ceb68d3b0e4"
+    },
+    {
+      "path": "check-compatibility.py",
+      "sha256": "cdd987e4ef9993af829b27dd5857ef72e6dfe6c082b0dfc42bd8e469a90aa6e2"
+    },
+    {
+      "path": "make-profile.py",
+      "sha256": "651a84073f5ebdaadc9ee39b9eafd7dca5fe0d070047569f7415eeb3e86f9dc2"
+    },
+    {
+      "path": "capture_graph.py",
+      "sha256": "9e4b3f0bbd58085d4afce52c4f3b8d01594afa5e38f40bffe646d68b22e686fd"
+    },
+    {
+      "path": "gpu_path.py",
+      "sha256": "6f27e2367f4b4516583a225a52539c1dd1e5cb03ef483680bf0f6a418ca8e03b"
+    },
+    {
+      "path": "proven.json",
+      "sha256": "40c4a059dc916afdb664885b2e7ce6ab79c59cc479969528980d33016038b8d7"
+    }
+  ],
+  "operator": {
+    "windows_outcome": "direct-usable",
+    "boot_kind": "full-shutdown",
+    "basis": "operator-reported",
+    "verified": false
+  },
+  "build": {
+    "status": "not-supplied",
+    "capture_binding_verified": false
+  },
+  "files_read": [
+    {
+      "name": "DIAG00.TXT",
+      "bytes": 425712,
+      "sha256": "da3c05b4621ccd3cf9189273927ed29c0f273e858946c4439d655119d27e34a7"
+    },
+    {
+      "name": "DIAG01.TXT",
+      "bytes": 425712,
+      "sha256": "df8e7987f5ae2f9493b9c7e81147889c9bdda7e4ee3634a6ce4154ce291745db"
+    },
+    {
+      "name": "IMG08.BIN",
+      "bytes": 36864,
+      "sha256": "e7873494d64314c2cd07a2a0ee19cd07f553f9afe23c1816b19ff272732f2681"
+    },
+    {
+      "name": "IMG29.BIN",
+      "bytes": 177920,
+      "sha256": "91d63933b715a46945836f027aacf8d2f8546d963b08de9a6c9d42ebe87f5351"
+    },
+    {
+      "name": "PROM.BIN",
+      "bytes": 1048576,
+      "sha256": "2a1eb63a19c7cb7a43d06e9229b62c61ae1f8900daf1925eb4acd12f2675a8f8"
+    }
+  ],
+  "evidence_gaps": [
+    "build_metadata_not_supplied"
+  ],
+  "file_scope": "Only immutable bytes consumed by this checker run; not a full folder inventory.",
+  "compatibility": {
+    "format": 2,
+    "checker_version": 1,
+    "envelope_sha256": "88c2fd19e45a314fbf1387f8b797c599e28dd43f5321873d5ff237203bf8bdc8",
+    "route": "automatic_local_profile",
+    "status": "candidate",
+    "hardware_tested": false,
+    "write_eligible": false,
+    "checks": [
+      {
+        "state": "candidate",
+        "code": "observations_pass",
+        "capture": "DIAG00.TXT"
+      },
+      {
+        "state": "candidate",
+        "code": "observations_pass",
+        "capture": "DIAG01.TXT"
+      },
+      {
+        "state": "candidate",
+        "code": "images_pass"
+      },
+      {
+        "state": "candidate",
+        "code": "prom_pass"
+      }
+    ],
+    "capture_count": 2,
+    "observations": [
+      {
+        "capture": "DIAG00.TXT",
+        "available": true,
+        "display_controller_count": 2,
+        "nvidia_display_count": 1,
+        "other_display_count": 1,
+        "display_controllers": [
+          {
+            "pci_id": "220410de",
+            "subsystem_id": "161319da",
+            "class_revision": "030000a1",
+            "location": {
+              "segment": 0,
+              "bus": 1,
+              "device": 0,
+              "function": 0
+            }
+          },
+          {
+            "pci_id": "13c01002",
+            "subsystem_id": "7e701462",
+            "class_revision": "030000c1",
+            "location": {
+              "segment": 0,
+              "bus": 121,
+              "device": 0,
+              "function": 0
+            }
+          }
+        ],
+        "display_controllers_truncated": false,
+        "gop_handle_count": 1,
+        "edid_by_driver_open_count": 1,
+        "edid_active_open_count": 1,
+        "chip_id": "b72000a1",
+        "device_memory_size_mib": 24576,
+        "register_snapshot": "complete",
+        "firmware_bindings": null,
+        "firmware_bindings_truncated": null
+      },
+      {
+        "capture": "DIAG01.TXT",
+        "available": true,
+        "display_controller_count": 2,
+        "nvidia_display_count": 1,
+        "other_display_count": 1,
+        "display_controllers": [
+          {
+            "pci_id": "220410de",
+            "subsystem_id": "161319da",
+            "class_revision": "030000a1",
+            "location": {
+              "segment": 0,
+              "bus": 1,
+              "device": 0,
+              "function": 0
+            }
+          },
+          {
+            "pci_id": "13c01002",
+            "subsystem_id": "7e701462",
+            "class_revision": "030000c1",
+            "location": {
+              "segment": 0,
+              "bus": 121,
+              "device": 0,
+              "function": 0
+            }
+          }
+        ],
+        "display_controllers_truncated": false,
+        "gop_handle_count": 1,
+        "edid_by_driver_open_count": 1,
+        "edid_active_open_count": 1,
+        "chip_id": "b72000a1",
+        "device_memory_size_mib": 24576,
+        "register_snapshot": "complete",
+        "firmware_bindings": null,
+        "firmware_bindings_truncated": null
+      }
+    ]
+  },
+  "limitations": [
+    "Hashes do not prove capture origin or distinct cold boots.",
+    "Build comparison does not bind captures to that EFI or verify source files.",
+    "No FWSEC parser execution, host replay, GPU access or Windows recovery verification.",
+    "No hardware qualification or unlock eligibility is granted."
+  ]
+}

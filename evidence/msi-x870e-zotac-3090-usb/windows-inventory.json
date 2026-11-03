@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "purpose": "compatibility-research-inventory",
+  "collection_complete": true,
+  "missing_sections": [],
+  "hardware": {
+    "board": [
+      {
+        "Manufacturer": "Micro-Star International Co., Ltd.",
+        "Product": "X870E GAMING PLUS WIFI (MS-7E70)"
+      }
+    ],
+    "cpu": [
+      {
+        "Name": "AMD Ryzen 9 9950X 16-Core Processor",
+        "Manufacturer": "AuthenticAMD"
+      }
+    ],
+    "os": [
+      {
+        "Caption": "Microsoft Windows 11 Pro",
+        "Version": "10.0.26200",
+        "BuildNumber": "26200",
+        "OSArchitecture": "64-bit"
+      }
+    ],
+    "bios": [
+      {
+        "Manufacturer": "American Megatrends International, LLC.",
+        "SMBIOSBIOSVersion": "1.A60"
+      }
+    ],
+    "video": [
+      {
+        "Name": "Microsoft Remote Display Adapter",
+        "DriverVersion": "10.0.26100.8521",
+        "pci": null,
+        "pci_status": "non-pci-or-unrecognized"
+      },
+      {
+        "Name": "NVIDIA GeForce RTX 3090",
+        "DriverVersion": "32.0.16.1062",
+        "pci": {
+          "vendor": "10de",
+          "device": "2204",
+          "subsystem_vendor": "19da",
+          "subsystem_device": "1613"
+        },
+        "pci_status": "parsed"
+      },
+      {
+        "Name": "AMD Radeon(TM) Graphics",
+        "DriverVersion": "32.0.21045.16010",
+        "pci": {
+          "vendor": "1002",
+          "device": "13c0",
+          "subsystem_vendor": "1462",
+          "subsystem_device": "7e70"
+        },
+        "pci_status": "parsed"
+      }
+    ]
+  },
+  "assessment": {
+    "status": "not-assessed",
+    "can_unlock": false,
+    "reason": "Windows inventory cannot validate the exact pre-boot safety checks."
+  },
+  "not_collected": [
+    "serials, UUIDs, hostname, username and PNP device-instance suffixes",
+    "Secure Boot state, active physical display route, PCI BDF and BAR layout",
+    "PROM, firmware, cold state, ownership, DMA and cleanup readiness"
+  ]
+}
