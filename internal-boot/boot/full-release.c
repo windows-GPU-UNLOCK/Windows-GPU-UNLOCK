@@ -820,7 +820,11 @@ EFI_STATUS GuReleaseGop(EFI_SYSTEM_TABLE *t,EFI_HANDLE image,GU_PREPARE_LOG log,
     UINTN repeats=stage==3?Full.ChildCount:1;
     for(UINTN child=0;child<repeats;child++) {
 #endif
+#if GU_TOPO_B760M
     s=Note(stage==3?"detach-rtx-edid-intent-shared-pointer-pauses":stage==4?"detach-extra-devicepath-intent":"detach-nvidia-gop-intent",EFI_SUCCESS);
+#else
+    s=Note(stage==3?"detach-rtx-edid-intent-shared-pointer-pauses":"detach-nvidia-gop-intent",EFI_SUCCESS);
+#endif
 #ifdef GU_RELEASE_PARENT_AUDIT
     if(s==EFI_SUCCESS)s=ReleaseAuditObserve(FALSE);
 #endif
@@ -835,7 +839,13 @@ EFI_STATUS GuReleaseGop(EFI_SYSTEM_TABLE *t,EFI_HANDLE image,GU_PREPARE_LOG log,
 #else
     EFI_TPL old=bs->RaiseTPL(TPL_NOTIFY);
 #endif
-    if(s==EFI_SUCCESS && stage!=4)s=Profile(stage==3?Full.EdidAgent:Full.NvAgent,stage==3);
+#if GU_TOPO_B760M
+    /* The per-stage Profile recheck belongs to the NVIDIA detach on every
+     * topology; stage 4 skips it only for the optional consumer role. */
+    if(s==EFI_SUCCESS && !(stage==4 && PreparedPlan.ExtraAgent))s=Profile(stage==3?Full.EdidAgent:Full.NvAgent,stage==3);
+#else
+    if(s==EFI_SUCCESS)s=Profile(stage==3?Full.EdidAgent:Full.NvAgent,stage==3);
+#endif
     if(s==EFI_SUCCESS)s=Snapshot(bs,&g);
     if(s==EFI_SUCCESS && !FullExpected(&g,stage-1))s=EFI_NOT_READY;
 #ifdef GU_MULTI_DISPLAY_RELEASE
@@ -858,18 +868,30 @@ EFI_STATUS GuReleaseGop(EFI_SYSTEM_TABLE *t,EFI_HANDLE image,GU_PREPARE_LOG log,
     disconnect=ReleaseAudit.Disconnect;
 #endif
 #ifdef GU_MULTI_DISPLAY_RELEASE
+#if GU_TOPO_B760M
     s=disconnect(stage==3?Full.Children[child]:PreparedPlan.RtxPci,
                                stage==3?Full.EdidAgent:stage==4?PreparedPlan.ExtraAgent:Full.NvAgent,NULL);
+#else
+    s=disconnect(stage==3?Full.Children[child]:PreparedPlan.RtxPci,stage==3?Full.EdidAgent:Full.NvAgent,NULL);
+#endif
     if(s==EFI_SUCCESS && stage==3)Full.EdidDetached++;
 #else
     s=disconnect(stage==3?PreparedPlan.Rtx:PreparedPlan.RtxPci,stage==3?Full.EdidAgent:Full.NvAgent,NULL);
 #endif
+#if GU_TOPO_B760M
     s=Note(stage==3?"detach-edid-return":stage==4?"detach-extra-devicepath-return":"detach-nvidia-return",s);if(s!=EFI_SUCCESS)return s;
+#else
+    s=Note(stage==3?"detach-edid-return":"detach-nvidia-return",s);if(s!=EFI_SUCCESS)return s;
+#endif
     if(stage==3)s=Alive(t,&PreparedPlan);
     else if(stage==GU_STAGE_LAST){Full.Released=TRUE;s=AmdOnly();}
     if(s==EFI_SUCCESS)s=Snapshot(bs,&g);
     if(s==EFI_SUCCESS && !FullExpected(&g,stage))s=EFI_NOT_READY;
+#if GU_TOPO_B760M
     s=Note(stage==3?"edid-detach-verified":stage==4?"extra-devicepath-detach-verified":"nvidia-detach-verified",s);if(s!=EFI_SUCCESS)return s;
+#else
+    s=Note(stage==3?"edid-detach-verified":"nvidia-detach-verified",s);if(s!=EFI_SUCCESS)return s;
+#endif
 #ifdef GU_MULTI_DISPLAY_RELEASE
     }
 #endif
