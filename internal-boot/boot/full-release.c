@@ -379,7 +379,7 @@ static EFI_STATUS FullConsumers(const GRAPH *g) {
       if(e->Agent!=PreparedPlan.ExtraAgent)return EFI_ACCESS_DENIED;
       continue;
     }
-    if(GuGuidEqual(&e->Protocol,&NvChildPrivateGuid) && e->Attributes==EFI_OPEN_PROTOCOL_BY_DRIVER && e->Controller==Full.Children[0] && e->Agent==PreparedPlan.EdidAgent){Full.EdidAgent=e->Agent;edid++;continue;}
+    if(GuGuidEqual(&e->Protocol,&EdidDiscoveredGuid) && e->Attributes==EFI_OPEN_PROTOCOL_BY_DRIVER && e->Controller==Full.Children[0] && e->Agent==PreparedPlan.EdidAgent){Full.EdidAgent=e->Agent;edid++;continue;}
     if(GuGuidEqual(&e->Protocol,&GopGuid) && e->Attributes==GU_B760M_EXTRA_ATTR && e->Controller==PreparedPlan.Agg && e->Agent==PreparedPlan.ComboAgent){combo++;continue;}
 #endif
     if(e->Count!=1 || !e->Agent)return EFI_ACCESS_DENIED;
@@ -706,7 +706,6 @@ static EFI_STATUS RestoreDecode(VOID) {
   if(s==EFI_SUCCESS)s=AuditOwnershipAcquire(&io);
 #else
   if(s==EFI_SUCCESS)s=bs->OpenProtocol(PreparedPlan.RtxPci,&PciGuid,(VOID **)&io,Full.Image,NULL,EFI_OPEN_PROTOCOL_EXCLUSIVE);
-#endif
 #endif
   if(s==EFI_SUCCESS)Full.Owned=TRUE;
 #ifdef GU_RELEASE_PARENT_AUDIT

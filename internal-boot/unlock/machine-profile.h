@@ -288,7 +288,8 @@
 /* B760M/Maxsun ownership-topology allowances: an AMI display-adjacent driver
  * (binding version 0x1b, image 0x3d200 bytes, boot-services code) holds
  * BY_DRIVER_EXCLUSIVE DevicePath opens on both GPU handles, and three child
- * links use the non-standard attribute 0x8. */
+ * links use the standard EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER attribute
+ * (0x8). */
 #if defined(GU_PROFILE_B760M_3080LHR)
 #define GU_TOPO_B760M 1
 #else

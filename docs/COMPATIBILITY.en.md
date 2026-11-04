@@ -205,8 +205,9 @@ Those tests remain blocked rather than accepting an inferred firmware layout.
 [Issue #28](https://github.com/impacifist/Windows-GPU-UNLOCK/issues/28) contributes
 one hardware-verified internal headless result on Maxsun MS-Terminator B760M D4
 BIOS H7.8G, i5-12490F (no iGPU) and an RTX 3080 10 GB LHR (GA102). The firmware
-exposes the nvgop display child with a non-standard open attribute and an
-optional AMI DevicePath consumer; the `GU_TOPO_B760M` allowances handle those
+exposes the nvgop display child with the standard
+`EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER` open attribute (`0x8`) and an optional
+AMI DevicePath consumer; the `GU_TOPO_B760M` allowances handle those
 differences. The profile remains exact-machine only.
 
 | Common GPU/platform item | Validated value |

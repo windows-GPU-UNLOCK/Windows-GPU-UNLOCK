@@ -100,14 +100,14 @@ static const EFI_GUID ComboFile={0x55987e62,0x1df6,0x41d1,{0x90,0x62,0x33,0x4f,0
 #define EFI_OPEN_PROTOCOL_BY_DRIVER_EXCLUSIVE 0x00000030
 #endif
 #if GU_TOPO_B760M
-/* NVIDIA GA10x private protocol the AMI EDID runtime binds through on this
- * firmware (captured 2026-10-25; nvgop installs it on the display child). */
-static EFI_GUID NvChildPrivateGuid={0x1c0c34f6,0xd380,0x41fa,{0xa0,0x49,0x8a,0xd0,0x6c,0x1a,0x66,0xaa}};
+/* The AMI EDID runtime binds through the standard EFI_EDID_DISCOVERED_PROTOCOL
+ * on this firmware (captured 2026-10-25; nvgop installs it on the display child). */
+static EFI_GUID EdidDiscoveredGuid=EFI_EDID_DISCOVERED_PROTOCOL_GUID;
 /* The AMI display-adjacent driver keeps multi-count BY_DRIVER_EXCLUSIVE
  * DevicePath opens on both GPU handles; pinned by binding fingerprint. */
 #define GU_B760M_EXTRA_VERSION 0x1bU
 #define GU_B760M_EXTRA_IMAGE_SIZE 0x3d200U
-#define GU_B760M_EXTRA_ATTR 0x8u
+#define GU_B760M_EXTRA_ATTR 0x8u /* EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER */
 #endif
 #endif
 static const UINT8 AmdPath[]={2,1,12,0,0xd0,0x41,3,10,0,0,0,0,1,1,6,0,1,8,1,1,6,0,0,0,2,3,8,0,0,3,1,128,127,255,4,0};
@@ -443,7 +443,7 @@ static EFI_STATUS Consumers(EFI_SYSTEM_TABLE *t,PLAN *p,const GRAPH *g) {
       if(e->Agent!=extra)return EFI_ACCESS_DENIED;
       extraGop++;continue;
     }
-    if(GuGuidEqual(&e->Protocol,&NvChildPrivateGuid) && e->Attributes==EFI_OPEN_PROTOCOL_BY_DRIVER && e->Controller==p->Rtx) {
+    if(GuGuidEqual(&e->Protocol,&EdidDiscoveredGuid) && e->Attributes==EFI_OPEN_PROTOCOL_BY_DRIVER && e->Controller==p->Rtx) {
       if(e->Count!=1 || !e->Agent)return EFI_ACCESS_DENIED;
       if(!p->EdidAgent)p->EdidAgent=e->Agent;else if(p->EdidAgent!=e->Agent)return EFI_ACCESS_DENIED;
       edid++;continue;

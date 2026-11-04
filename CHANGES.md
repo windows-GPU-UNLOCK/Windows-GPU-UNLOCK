@@ -116,8 +116,9 @@
   file still cannot select a profile. The profile uses the default
   `GU_TARGET_BUS 1U` and keeps its AMI EDID runtime.
 - Added `GU_TOPO_B760M` aggregate-console allowances: nvgop's display child
-  uses open attribute `0x8`; the AMI EDID runtime binds through the NVIDIA
-  private protocol; an optional AMI DevicePath consumer is detached at stage 4;
+  uses the standard `EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER` attribute (`0x8`);
+  the AMI EDID runtime binds through the standard `EFI_EDID_DISCOVERED_PROTOCOL`;
+  an optional AMI DevicePath consumer is detached at stage 4;
   the console text-out driver is identified by FFS GUID+size+version because
   its Stop offsets vary per boot. Existing profiles and their build hashes are
   unchanged.

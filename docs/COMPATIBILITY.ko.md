@@ -232,7 +232,8 @@ nvgop `60009`의 기존 검증 코드 해시 조합을 허용합니다. subsyste
 [issue #28](https://github.com/impacifist/Windows-GPU-UNLOCK/issues/28)의 내부
 headless 실기기 결과 한 건입니다. Maxsun MS-Terminator B760M D4 BIOS H7.8G,
 iGPU 없는 i5-12490F, RTX 3080 10GB LHR(GA102) 구성입니다. 펌웨어가 nvgop
-디스플레이 child를 비표준 open attribute로 노출하고 AMI DevicePath consumer가
+디스플레이 child를 표준 `EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER` open
+attribute(`0x8`)로 노출하고 AMI DevicePath consumer가
 조건부로 붙으며, `GU_TOPO_B760M` 허용 범위가 그 차이를 처리합니다. 이 프로필은
 exact-machine 전용입니다.
 
@@ -457,7 +458,8 @@ FP32 9.58 → 9.34 TFLOPS입니다. 저장소의 cuBLAS n=4096과는 다른 측�
 [issue #28](https://github.com/impacifist/Windows-GPU-UNLOCK/issues/28)의 내부
 headless 실기기 결과 한 건입니다. Maxsun MS-Terminator B760M D4 BIOS H7.8G,
 iGPU 없는 i5-12490F, RTX 3080 10GB LHR(GA102) 구성입니다. 펌웨어가 nvgop
-디스플레이 child를 비표준 open attribute로 노출하고 AMI DevicePath consumer가
+디스플레이 child를 표준 `EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER` open
+attribute(`0x8`)로 노출하고 AMI DevicePath consumer가
 조건부로 붙으며, `GU_TOPO_B760M` 허용 범위가 그 차이를 처리합니다. 이 프로필은
 exact-machine 전용입니다.
 
