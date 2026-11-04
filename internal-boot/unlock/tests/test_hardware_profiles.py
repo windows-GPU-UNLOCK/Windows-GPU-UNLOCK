@@ -70,6 +70,16 @@ def quoted(value):
     return '"' + value + '"'
 
 
+def resolve(macros, value):
+    """-dM lists replacement lists, not expansions; gpu-family.h defines
+    GU_CHIP_ID through the family indirection, so follow the chain."""
+    seen = set()
+    while value in macros and value not in seen:
+        seen.add(value)
+        value = macros[value]
+    return value
+
+
 for profile, expected in PROFILES.items():
     macros = macro_map([expected['define']])
     assert macros['GU_PROFILE_NAME'] == quoted(expected['name']), (profile, macros.get('GU_PROFILE_NAME'))
@@ -79,7 +89,7 @@ for profile, expected in PROFILES.items():
         ('chip', 'GU_CHIP_ID'),
         ('memory', 'GU_DEVICE_MEMORY_SIZE'),
     ):
-        assert macros[macro] == expected[key], (profile, key, macros.get(macro))
+        assert resolve(macros, macros[macro]) == expected[key], (profile, key, macros.get(macro))
     assert macros['GU_PROM_SHA256'] == quoted(expected['prom']), (profile, 'prom')
     assert macros['GU_CONSOLE_AGGREGATE'] == expected['aggregate'], (profile, 'aggregate')
     assert macros['GU_TOPO_B760M'] == expected['topo'], (profile, 'topo')
