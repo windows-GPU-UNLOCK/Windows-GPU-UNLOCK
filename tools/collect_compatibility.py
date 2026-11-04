@@ -137,15 +137,16 @@ def collect_inventory():
         result = subprocess.run(
             [str(powershell), '-NoLogo', '-NoProfile', '-NonInteractive',
              '-EncodedCommand', encoded],
-            capture_output=True, encoding='utf-8-sig', timeout=45, check=False,
+            capture_output=True, timeout=45, check=False,
         )
-    except (OSError, subprocess.TimeoutExpired, UnicodeError):
+    except (OSError, subprocess.TimeoutExpired):
         raise RuntimeError('Windows inventory collection failed or timed out.') from None
     if result.returncode:
         # Raw stderr can include local paths; never forward it into reports.
         raise RuntimeError('PowerShell inventory failed; use the manual issue form.')
     try:
-        inventory = json.loads(result.stdout)
+        stdout_text = result.stdout.decode('utf-8-sig', errors='replace')
+        inventory = json.loads(stdout_text)
         return make_report(inventory)
     except (ValueError, TypeError):
         raise RuntimeError('Invalid inventory response; use the manual issue form.') from None
