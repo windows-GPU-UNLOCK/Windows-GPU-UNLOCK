@@ -1,11 +1,12 @@
 # GPL-2.0-only. Local build provenance; no disk or firmware mutation.
-function Get-HeadlessInputInventory([string]$Repo,[switch]$WithContract){
+function Get-HeadlessInputInventory([string]$Repo,[switch]$WithContract,[switch]$WithSplashContract){
  $base=[IO.Path]::GetFullPath($Repo).TrimEnd([IO.Path]::DirectorySeparatorChar,[IO.Path]::AltDirectorySeparatorChar)
  $runtime=Join-Path $base 'internal-boot'
  $paths=@(Get-ChildItem -LiteralPath $runtime -Recurse -File | Where-Object {$_.Extension -in '.c','.h','.ps1' -and $_.FullName.Substring($runtime.Length+1) -notmatch '(^|[\\/])build([\\/]|$)'})
  $paths+=Get-ChildItem -LiteralPath (Join-Path $base 'deps/edk2/MdePkg/Include') -Recurse -File -Filter '*.h'
  $paths+=Get-Item -LiteralPath (Join-Path $base 'internal-boot/local-config.json'),(Join-Path $base 'internal-boot/unlock/assets.json'),(Join-Path $base 'research/headless/build-unlock.ps1')
  if($WithContract){$paths+=Get-Item -LiteralPath (Join-Path $base 'internal-boot/boot/build/headless/child-contract.h')}
+ if($WithSplashContract){$paths+=Get-Item -LiteralPath (Join-Path $base 'internal-boot/boot/build/headless/splash-contract.h')}
  return @($paths | Sort-Object FullName -Unique | ForEach-Object {[ordered]@{Path=$_.FullName.Substring($base.Length+1).Replace([char]92,[char]47);Sha256=(Get-FileHash -LiteralPath $_.FullName).Hash.ToLowerInvariant()}})
 }
 function Get-HeadlessGuidInitializer([guid]$Value){
@@ -32,7 +33,18 @@ function Assert-HeadlessPackage([string]$Repo){
  $null=Assert-HeadlessLocalConfig $Repo
  $m=Get-Content -LiteralPath (Join-Path $Repo 'internal-boot/boot/build/headless/manifest.json') -Raw | ConvertFrom-Json
  if($m.Format -ne 2 -or $m.Mode -ne 'single-rtx-headless-unlock-then-windows' -or $m.CanUnlock -ne $true -or $m.RequiresHumanKey -ne $false -or $m.HardwareProfile -notin @('ASUS-TUF-B650M-PLUS-WIFI-3057-RTX3090-FE','ASUS-TUF-GAMING-B660M-E-D4-4003-RTX3070TI','ASUS-TUF-GAMING-B660M-E-D4-4003-RTX3090TI')){throw 'Unexpected headless package profile'}
- $actual=Get-HeadlessInputInventory $Repo -WithContract
+ $withSplash=$null -ne $m.PSObject.Properties['SplashSha256'] -or $null -ne $m.PSObject.Properties['SplashBytes']
+ if($withSplash){
+  if($m.SplashSha256 -isnot [string] -or $m.SplashSha256 -cnotmatch '^[0-9a-f]{64}$' -or
+     ($m.SplashBytes -isnot [int] -and $m.SplashBytes -isnot [long]) -or
+     $m.SplashBytes -le 472 -or $m.SplashBytes -gt (192MB+472)){throw 'Invalid splash asset metadata'}
+  $splash=Join-Path $Repo 'internal-boot/boot/build/headless/SPLASH.BIN'
+  if((Get-Item -LiteralPath $splash).Length -ne $m.SplashBytes -or (Get-FileHash -LiteralPath $splash).Hash -ine $m.SplashSha256){throw 'Splash asset does not match its manifest'}
+  $splashContract=Get-Content -LiteralPath (Join-Path $Repo 'internal-boot/boot/build/headless/splash-contract.h')
+  if($splashContract -cnotcontains ('#define GU_SPLASH_SHA256 "'+$m.SplashSha256+'"') -or
+     $splashContract -cnotcontains ('#define GU_SPLASH_BYTES '+$m.SplashBytes)){throw 'Wrapper splash contract mismatch'}
+ }
+ $actual=Get-HeadlessInputInventory $Repo -WithContract -WithSplashContract:$withSplash
  if($actual.Count -ne $m.Inputs.Count){throw 'Build source set changed; rebuild the package'}
  for($i=0;$i -lt $actual.Count;$i++){if($actual[$i].Path -cne $m.Inputs[$i].Path -or $actual[$i].Sha256 -ne $m.Inputs[$i].Sha256){throw ('Build input changed; rebuild: '+$actual[$i].Path)}}
  $wrapper=Join-Path $Repo 'internal-boot/boot/build/headless/HEADLESS.EFI'

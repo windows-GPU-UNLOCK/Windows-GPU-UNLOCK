@@ -64,6 +64,9 @@ $artifacts=@(
  @('boot/build/headless/HEADLESS.EFI','EFI\WindowsGPUUnlock\HEADLESS.EFI',$package.EfiSha256),
  @($child,'EFI\WindowsGPUUnlock\UNLOCK-HEADLESS.EFI',$package.ChildSha256)
 )
+if($package.SplashSha256){
+ $artifacts=@(,@('boot/build/headless/SPLASH.BIN','EFI\WindowsGPUUnlock\SPLASH.BIN',$package.SplashSha256))+$artifacts
+}
 $assetSpecs=@(Get-HeadlessAssetSpecs $repo)
 function StageFile([string]$source,[string]$relative,[string]$hash){
  if((Get-FileHash -LiteralPath $source).Hash -ne $hash){throw 'Source file hash mismatch'}
@@ -75,7 +78,7 @@ function StageFile([string]$source,[string]$relative,[string]$hash){
 function CheckStaged {
  if((Target) -ne $root){throw 'Target changed'}
  $null=Assert-HeadlessPackage $repo
- foreach($a in $artifacts){if((Get-FileHash -LiteralPath (Join-Path $root $a[1])).Hash -ne $a[2]){throw 'Installed EFI changed'}}
+ foreach($a in $artifacts){if((Get-FileHash -LiteralPath (Join-Path $root $a[1])).Hash -ne $a[2]){throw 'Installed headless artifact changed'}}
  foreach($a in $assetSpecs){$p=Join-Path $root ('RTX3090-UNLOCK\ASSETS\'+$a.Name);if((Get-Item -LiteralPath $p).Length -ne $a.Bytes -or (Get-FileHash -LiteralPath $p).Hash -ne $a.Sha256){throw 'Installed asset changed'}}
 }
 if(!$EnableAutomatic){
