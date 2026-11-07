@@ -109,9 +109,20 @@ for role, protocol, controller in [
     roles[role] = records[0][1]
     block = blocks[next(h for h, i in indices.items() if i == roles[role])]
     if aggregate:
-        observed = re.findall(r'^driver image=0x([0-9a-f]+) binding=0x([0-9a-f]+)$', block, re.M)
+        # diagnostic.c writes version and stop-address on this same line.
+        # Synthetic fixtures omit them. Image and binding must agree either way,
+        # and a captured version and stop must match that binding row.
+        observed = re.findall(
+            r'^driver image=0x([0-9a-f]+) binding=0x([0-9a-f]+)'
+            r'(?: version=0x([0-9a-f]+) stop-address=0x([0-9a-f]+))?$',
+            block, re.M)
         binding = profile.binding_for(observed_bindings, original[roles[role]])
-        if len(observed) != 1 or tuple(int(value, 16) for value in observed[0]) != (binding['image'], binding['handle']):
+        if len(observed) != 1:
+            raise ValueError('Aggregate graph and binding image records disagree')
+        image_text, handle_text, version_text, stop_text = observed[0]
+        if (int(image_text, 16), int(handle_text, 16)) != (binding['image'], binding['handle']):
+            raise ValueError('Aggregate graph and binding image records disagree')
+        if version_text and (int(version_text, 16), int(stop_text, 16)) != (binding['version'], binding['stop']):
             raise ValueError('Aggregate graph and binding image records disagree')
     roles[role.removesuffix('Agent') + 'Image'] = indices[hex(int(re.search(r'driver image=(0x[0-9a-f]+)', block)[1], 16))]
 console = re.search(r'console out=(0x[0-9a-f]+) error=(0x[0-9a-f]+) input=(0x[0-9a-f]+)', text)
@@ -183,8 +194,28 @@ if aggregate:
         parent,device,base,size,code_type=(int(value,16) for value in image_rows[0])
         if (base,size,code_type)!=(binding['base'],binding['size'],binding['code-type']):
             raise ValueError('Aggregate image and binding metadata disagree')
-        image_nodes=re.findall(r'^image-file-path-node raw=([0-9a-f]+)$',image_block['raw'],re.M)
-        if image_nodes!=[node.hex() for node in binding['nodes']]:
+        image_nodes=[]
+        pending=False
+        for line in image_block['raw'].splitlines():
+            prefixed=re.fullmatch(r'image-file-path-node raw=([0-9a-f]+)', line)
+            continued=re.fullmatch(r'path-node raw=([0-9a-f]+)', line)
+            if prefixed and not pending:
+                image_nodes.append(prefixed[1])
+                raw_node=bytes.fromhex(prefixed[1])
+                pending=not (len(raw_node)>=2 and raw_node[0]==0x7f and raw_node[1]==0xff)
+                continue
+            if pending and (prefixed or continued):
+                value=prefixed[1] if prefixed else continued[1]
+                image_nodes.append(value)
+                raw_node=bytes.fromhex(value)
+                pending=not (len(raw_node)>=2 and raw_node[0]==0x7f and raw_node[1]==0xff)
+                continue
+            if pending:
+                break
+        # diagnostic.c prefixes only the first file-path node. Path() logs the
+        # rest as path-node, including the end node. Synthetic fixtures prefix
+        # every node. Both must equal the binding image path.
+        if pending or image_nodes!=[node.hex() for node in binding['nodes']]:
             raise ValueError('Aggregate image file paths disagree')
         if device and hex(device) not in indices:
             raise ValueError('Aggregate image device handle is unresolved')
