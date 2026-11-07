@@ -1,5 +1,15 @@
 # Changes
 
+## Unreleased — add Windows GSP mode helper and zero-dependency GEMM benchmark
+
+- Add `tools/set-gsp.ps1` to automate configuring `EnableGpuFirmware=1` across
+  all detected NVIDIA display adapters, eliminating driver Code 43 on Windows
+  when running pre-OS unlock configurations.
+- Add `benchmark/quick_gemm_bench.py` and `benchmark/test_quick_gemm_bench.py`
+  to measure 4096 GEMM throughput via ctypes directly calling system cuBLAS,
+  enabling instant TFLOPS verification without requiring MSVC/nvcc compiler tools.
+- Add `docs/GSP-MODE.en.md` explaining CPU-RM vs GSP-RM mechanisms on Windows.
+
 ## Unreleased — preserve captured state in host qualification fixtures
 
 - Initialize the app mock's PCI attributes from its captured command, including
