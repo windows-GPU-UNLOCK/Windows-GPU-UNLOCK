@@ -145,7 +145,7 @@ static EFI_STATUS OpenLog(VOID) {
     CHAR16 name[]=L"\\RTX3090-UNLOCK\\PREP00.TXT";
 #endif
 #elif defined(GU_DIAGNOSTIC_ONLY)
-    CHAR16 name[]=L"\\RTX3090-UNLOCK\\DIAG00.TXT";
+    CHAR16 name[]=L"\\GPUDIAG00.TXT";
 #else
     CHAR16 name[]=L"\\RTX3090-UNLOCK\\HANDOFF00.TXT";
 #endif
@@ -223,6 +223,12 @@ static EFI_STATUS LoadUnlock(VOID) {
 #endif
 static EFI_STATUS Prepare(VOID *Context) {
   (void)Context;EFI_HANDLE own=NULL,windows=NULL;
+#ifdef GU_PROBE_GENERIC
+  /* Read-only probe: write the capture to the boot volume (USB) root. No USB-node
+     requirement (firmware USB device paths vary) and no Windows ESP dependency,
+     so it runs on this laptop and returns to the firmware BootOrder afterwards. */
+  { EFI_STATUS sp=OpenLog(); if(sp!=EFI_SUCCESS)return sp; return Record(NULL,"probe-generic-v1",EFI_SUCCESS); }
+#endif
 #if defined(GU_USB_PROBE) || defined(GU_USB_MEDIA)
   /* Probe or unlock from an MBR USB stick: no partition GUID to pin, so the log/child
      volume is the device this image was loaded from, and it must be USB. */
@@ -418,9 +424,18 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE Image,EFI_SYSTEM_TABLE *St) {
     /* Partial observations never authorize unlock. Normal Windows boot is
      * permitted because this separate image has not touched GPU state. */
     EFI_STATUS recorded=Record(NULL,"diagnostic-result",s);
+#ifdef GU_PROBE_GENERIC
+    if(recorded!=EFI_SUCCESS)s=recorded;
+    Say(s==EFI_SUCCESS?L"Done. On the USB ROOT: GPUDIAG00.TXT (and PROM.BIN, IMG*.BIN).\r\n":L"Capture had errors; send GPUDIAG00.TXT from the USB if present.\r\n");
+#else
     if(recorded==EFI_SUCCESS)s=Windows(NULL);
     else s=recorded;
+#endif
   }
+#ifdef GU_PROBE_GENERIC
+  else Say(L"Could not write to the USB. Is it FAT32 and not write-protected?\r\n");
+  if(Table->BootServices->Stall)Table->BootServices->Stall(8000000);
+#endif
 #else
   GU_HANDOFF_OPS ops={NULL,Prepare,Select,Record,Unlock,Windows};
   s=GuHandoffFlow(&ops);
