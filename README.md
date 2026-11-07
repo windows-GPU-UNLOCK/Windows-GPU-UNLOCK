@@ -18,6 +18,7 @@ community contributions.
 | Your goal | What to do |
 | :--- | :--- |
 | **I'm new. What information should I report?** | [Beginner guide: check your PC and share results](docs/START-HERE.en.md) |
+| **I want an all-in-one GUI / launcher** | [Launch Utility & Management Tool](#all-in-one-gui--cli-management-utility) (`tools/Launch-Utility.cmd`) |
 | **I already have capture files from my PC** | [Check those files offline](docs/START-HERE.en.md#2--check-existing-files) |
 | **I want to know which setups have worked** | [Reported setups and their limits](docs/CONFIRMED-SETUPS.en.md) |
 | **I'm ready to investigate an unlock** | [Check the exact configuration and boot route first](docs/COMPATIBILITY.en.md) |
@@ -34,6 +35,36 @@ This prints hardware/driver information; it does not unlock, change settings or 
 
 > [!TIP]
 > No Python or terminal experience? The [step-by-step guide](docs/START-HERE.en.md) explains how to start, what the result means and what to share. You can also enter hardware details manually; no EFI test is required to report findings.
+
+### All-in-One GUI & CLI Management Utility
+
+For an integrated, end-to-end management experience within Windows, use the **Windows GPU UNLOCK Management Utility**:
+
+- **One-Click Batch Launcher**:
+  ```bat
+  .\tools\launch-utility.cmd
+  ```
+  *(Double-click in Explorer or invoke from cmd.exe/PowerShell. Automatically prompts for Administrator elevation when needed, or launches in read-only user mode for diagnostics.)*
+
+- **PowerShell Launcher**:
+  ```powershell
+  # Launch the dark-themed WPF desktop GUI
+  .\tools\launch-utility.ps1
+
+  # Or run in headless command-line mode (e.g. audit hardware)
+  .\tools\launch-utility.ps1 -Cli -Action Audit
+  ```
+
+**Included Capabilities:**
+- **System & GPU Audit**: Inspects motherboard, BIOS version, CPU, and NVIDIA GPU PCI identifier topology.
+- **Safety Pre-Flight Verification**: Assesses Secure Boot status, Fast Startup (`HiberbootEnabled`), BitLocker encryption state, and bootloader integrity.
+- **1-Click Firmware Assets Acquisition**: Automatically downloads and verifies required proprietary NVIDIA GA102 firmware blobs (`assets/*.bin`) against `unlock\assets.json`.
+- **USB Unlock Deployer**: Auto-detects connected FAT32 USB drives and stages `BOOTX64.EFI` and payload assets.
+- **Offline Compatibility Checker**: Evaluates pre-boot EFI capture artifacts (`DIAGnn.TXT`, `IMGnn.BIN`, `PROM.BIN`) and supports side-by-side JSON report comparison.
+- **Verification & Telemetry**: Queries live `nvidia-smi` sensors and provides guidance for cuBLAS tensor benchmark verification.
+- **1-Click Emergency Recovery**: Restores the stock Windows Boot Manager (`{bootmgr}`) at priority #1 in UEFI NVRAM via `bcdedit`.
+
+For complete parameter references, tab breakdowns, and automation options, refer to the [Management Utility Guide](tools/gpu_unlock_utility/README.md).
 
 ## Community
 
@@ -219,6 +250,7 @@ Do not remove checks or substitute a PROM hash to force another machine through.
 
 | Path | Purpose |
 |---|---|
+| `tools/` | Convenience launchers (`Launch-Utility.cmd`/`.ps1`), GUI/CLI management utility, firmware downloader, and compatibility tools |
 | `internal-boot/`, `research/headless/` | Internal/headless source, local build, installation and host tests |
 | `unlock/`, `release/` | Preserved legacy USB manual implementation and historical artifacts |
 | `benchmark/`, `evidence/` | Measurement tools and selected public evidence |

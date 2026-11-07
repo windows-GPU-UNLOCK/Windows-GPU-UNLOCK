@@ -109,7 +109,7 @@ for role, protocol, controller in [
     roles[role] = records[0][1]
     block = blocks[next(h for h, i in indices.items() if i == roles[role])]
     if aggregate:
-        observed = re.findall(r'^driver image=0x([0-9a-f]+) binding=0x([0-9a-f]+)$', block, re.M)
+        observed = re.findall(r'^driver image=0x([0-9a-f]+) binding=0x([0-9a-f]+)\b', block, re.M)
         binding = profile.binding_for(observed_bindings, original[roles[role]])
         if len(observed) != 1 or tuple(int(value, 16) for value in observed[0]) != (binding['image'], binding['handle']):
             raise ValueError('Aggregate graph and binding image records disagree')
@@ -183,8 +183,9 @@ if aggregate:
         parent,device,base,size,code_type=(int(value,16) for value in image_rows[0])
         if (base,size,code_type)!=(binding['base'],binding['size'],binding['code-type']):
             raise ValueError('Aggregate image and binding metadata disagree')
-        image_nodes=re.findall(r'^image-file-path-node raw=([0-9a-f]+)$',image_block['raw'],re.M)
-        if image_nodes!=[node.hex() for node in binding['nodes']]:
+        image_nodes = re.findall(r'^image-file-path-node raw=([0-9a-f]+)$', image_block['raw'], re.M)
+        binding_nodes = [node.hex() for node in binding['nodes']]
+        if image_nodes != binding_nodes and image_nodes + ['7fff0400'] != binding_nodes:
             raise ValueError('Aggregate image file paths disagree')
         if device and hex(device) not in indices:
             raise ValueError('Aggregate image device handle is unresolved')

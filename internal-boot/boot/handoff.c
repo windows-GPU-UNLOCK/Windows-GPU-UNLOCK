@@ -276,7 +276,13 @@ static EFI_STATUS FullChoice(VOID *Context,BOOLEAN *Skip) {
   (void)Context;*Skip=FALSE;
   if(!Table->ConIn || !Table->ConIn->ReadKeyStroke)return EFI_UNSUPPORTED;
 #ifdef GU_HEADLESS_RESEARCH
-  Say(L"SINGLE RTX HEADLESS UNLOCK RESEARCH: one guarded attempt, then Windows.\r\nNo key required. Esc within 5 seconds skips all changes.\r\nScreen may stop updating. Errors stop without reset/retry; power off and F8 Windows Boot Manager.\r\n");
+  Say(L"========================================================================\r\n");
+  Say(L" SINGLE RTX HEADLESS UNLOCK: One guarded attempt, then Windows.\r\n");
+  Say(L" No key required. Esc within 5 seconds skips all changes.\r\n");
+  Say(L"========================================================================\r\n");
+  Say(L" PLEASE WAIT: The screen will stop updating at 'pre-release-cold-ss0'\r\n");
+  Say(L" while the GPU resets and unlocks. Windows will boot shortly (~15-30s).\r\n");
+  Say(L" Errors stop without reset/retry; power off and F8 Windows Boot Manager.\r\n\r\n");
 #elif defined(GU_AUTOMATIC_BOOT)
   Say(L"Windows GPU UNLOCK AUTO: Esc within 5 seconds boots Windows only.\r\nOtherwise one guarded unlock, then Windows. No U required.\r\nKeep AMD display/keyboard connected. Firmware mouse/cursor may pause.\r\n");
 #else
@@ -296,6 +302,9 @@ static EFI_STATUS FullChoice(VOID *Context,BOOLEAN *Skip) {
   if(r==EFI_SUCCESS)r=Record(NULL,"pre-release-cold-wpr2-hi",cold[4]);
   if(r==EFI_SUCCESS)r=Record(NULL,"pre-release-cold-ss0",cold[6]);
   if(r!=EFI_SUCCESS)return r;
+#ifdef GU_HEADLESS_RESEARCH
+  Say(L"\r\n[!] Starting unlock transaction now. Screen will pause here. Please wait for Windows...\r\n");
+#endif
   if(c!=EFI_SUCCESS) {
     Say(L"GPU cold-state prerequisites could not be verified.\r\nStarting Windows without driver release or unlock. Check the pre-release log before another attempt.\r\n");
     *Skip=TRUE;
