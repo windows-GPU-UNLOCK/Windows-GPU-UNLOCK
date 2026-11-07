@@ -1,0 +1,17 @@
+{
+  "Id": "issue185",
+  "Board": "A520M-ITX/ac",
+  "ManufacturerPrefix": "ASRock",
+  "Bios": "P3.90",
+  "CpuToken": "4650GE",
+  "Adapters": [
+    {
+      "Vendor": "10DE",
+      "Device": "2507",
+      "Subsystem": "887C1043"
+    }
+  ],
+  "SchemaVersion": 1,
+  "Scope": "graph-only",
+  "ManufacturerMatch": "prefix"
+}

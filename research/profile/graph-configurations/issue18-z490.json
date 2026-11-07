@@ -1,0 +1,13 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue18-z490",
+  "Scope": "graph-only",
+  "Board": "MPG Z490 GAMING PLUS (MS-7C75)",
+  "ManufacturerPrefix": "Micro-Star",
+  "ManufacturerMatch": "prefix",
+  "Bios": "A.B0",
+  "CpuToken": "i5-10600KF",
+  "Adapters": [
+    { "Vendor": "10DE", "Device": "2489", "Subsystem": "150A7377" }
+  ]
+}

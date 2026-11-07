@@ -1,0 +1,17 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue19",
+  "Scope": "graph-only",
+  "Board": "1052",
+  "ManufacturerPrefix": "LENOVO",
+  "Bios": "S0AKT48A",
+  "CpuToken": "i9-11900K",
+  "Adapters": [
+    {
+      "Vendor": "10DE",
+      "Device": "2504",
+      "Subsystem": "881D1043"
+    }
+  ],
+  "ManufacturerMatch": "exact"
+}

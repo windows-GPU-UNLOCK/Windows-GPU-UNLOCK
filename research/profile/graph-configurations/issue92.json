@@ -1,0 +1,13 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue92",
+  "Scope": "graph-only",
+  "Board": "B550M AORUS ELITE",
+  "ManufacturerPrefix": "Gigabyte",
+  "ManufacturerMatch": "prefix",
+  "Bios": "FHb",
+  "CpuToken": "5900X",
+  "Adapters": [
+    { "Vendor": "10DE", "Device": "2208", "Subsystem": "40851458" }
+  ]
+}

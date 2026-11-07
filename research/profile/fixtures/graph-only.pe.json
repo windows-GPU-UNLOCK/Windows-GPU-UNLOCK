@@ -1,0 +1,14 @@
+{
+  "path": "GRAPH-ONLY.EFI",
+  "bytes": 14848,
+  "sha256": "487f558711204faeb7fd9af599b1fcd31b98580529f6aee970f3220c91f76ab0",
+  "machine": "AMD64",
+  "subsystem": 10,
+  "entry": "efi_main",
+  "entry_rva": 4096,
+  "imports": 0,
+  "iat": 0,
+  "delay_imports": 0,
+  "nx": true,
+  "dynamic_base": true
+}

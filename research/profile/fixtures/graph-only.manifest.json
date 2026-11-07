@@ -1,0 +1,59 @@
+{
+  "Mode": "graph-only-build",
+  "FixtureOnly": true,
+  "HardwareTested": false,
+  "CanUnlock": false,
+  "CanDetach": false,
+  "ReadsGpuMmio": false,
+  "DumpsProm": false,
+  "DumpsImages": false,
+  "WritesFirmwareVariables": false,
+  "Defines": [
+    "-DGU_DIAGNOSTIC_ONLY",
+    "-DGU_GRAPH_ONLY",
+    "-DGU_USB_MEDIA"
+  ],
+  "Sources": [
+    {
+      "Path": "internal-boot/boot/handoff.c",
+      "Sha256": "bcf6439576216af83ef15fe4894130a7011f0e7b775877892b3a678838445eba"
+    },
+    {
+      "Path": "internal-boot/boot/diagnostic.c",
+      "Sha256": "6f608f093c5edf44644c478379e61f6e38e54ece91eb7deb9ba535b98d3a5671"
+    },
+    {
+      "Path": "internal-boot/efi_runtime.c",
+      "Sha256": "8949b6cacbdf2f41c7248a4b290c6c2bb7c19cb1a231699fd310d1e526e2d3f4"
+    },
+    {
+      "Path": "internal-boot/unlock/sha256.c",
+      "Sha256": "5b707487e2aef3e582d689e36e1650b7f017180991c841dcd0cc2d115cdda567"
+    },
+    {
+      "Path": "internal-boot/boot/diagnostic.h",
+      "Sha256": "d88278fc7cbf17cbbb7a5e74119b574caa2b6f38836a35cc3fc429beb7f7202d"
+    },
+    {
+      "Path": "internal-boot/boot/media.h",
+      "Sha256": "dd67915e492dec97a3206c333b7a22bd30146244809f923e1131323efc4f106c"
+    },
+    {
+      "Path": "internal-boot/boot/flow.h",
+      "Sha256": "9ffb7b56427f90753a5b1b5da25dafddbad49d0cfa2bf58fdb94e7a3808e4a50"
+    },
+    {
+      "Path": "internal-boot/unlock/machine-profile.h",
+      "Sha256": "36c037ddb9d6c63c785b8356aa2422e41fea04ff6c578035c4663a30700a8973"
+    },
+    {
+      "Path": "internal-boot/unlock/gpu-family.h",
+      "Sha256": "279c5104243cbfefb20d9a0083842efd06a6d89d75c5a5c5dddf13cee6f3beea"
+    },
+    {
+      "Path": "internal-boot/unlock/firmware-profile.h",
+      "Sha256": "6384231c3bf102d1b970714934baae459fe2d1d89d63e5550243aee77173370a"
+    }
+  ],
+  "EfiSha256": "487f558711204faeb7fd9af599b1fcd31b98580529f6aee970f3220c91f76ab0"
+}

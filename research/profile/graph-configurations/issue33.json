@@ -1,0 +1,17 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue33",
+  "Scope": "graph-only",
+  "Board": "X99-PRO/USB 3.1",
+  "ManufacturerPrefix": "ASUSTeK",
+  "Bios": "4101",
+  "CpuToken": "i7-5820K",
+  "Adapters": [
+    {
+      "Vendor": "10DE",
+      "Device": "2204",
+      "Subsystem": "87AF1043"
+    }
+  ],
+  "ManufacturerMatch": "prefix"
+}

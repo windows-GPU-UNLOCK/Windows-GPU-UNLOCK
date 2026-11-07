@@ -63,7 +63,8 @@ class ComparisonTests(unittest.TestCase):
         self.assertEqual(self.field('device_memory_size_mib')['state'], 'different')
 
     def test_policy_change_defers_comparison(self):
-        for key, value in (('envelope_sha256', '0' * 64), ('checker_version', 2)):
+        for key, value in (('envelope_sha256', '0' * 64),
+                           ('checker_version', self.left['checker_version'] + 1)):
             self.right = copy.deepcopy(self.left)
             self.right[key] = value
             result = comparison.compare(self.left, self.right)

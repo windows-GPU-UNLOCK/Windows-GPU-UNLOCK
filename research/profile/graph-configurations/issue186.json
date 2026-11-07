@@ -1,0 +1,17 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue186",
+  "Scope": "graph-only",
+  "Board": "B560M Steel Legend",
+  "ManufacturerPrefix": "ASRock",
+  "ManufacturerMatch": "exact",
+  "Bios": "P1.90",
+  "CpuToken": "i5-11400F",
+  "Adapters": [
+    {
+      "Vendor": "10DE",
+      "Device": "2783",
+      "Subsystem": "571019DA"
+    }
+  ]
+}

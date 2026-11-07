@@ -1,0 +1,13 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue200",
+  "Scope": "graph-only",
+  "Board": "PRIME B550M-A WIFI II",
+  "ManufacturerPrefix": "ASUSTeK",
+  "ManufacturerMatch": "prefix",
+  "Bios": "3636",
+  "CpuToken": "5800X3D",
+  "Adapters": [
+    { "Vendor": "10DE", "Device": "2216", "Subsystem": "48973842" }
+  ]
+}

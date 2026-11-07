@@ -3,7 +3,14 @@
 #include <Uefi.h>
 #include <Protocol/DevicePath.h>
 
+#ifdef GU_GRAPH_ONLY
+#if !defined(GU_DIAGNOSTIC_ONLY) || defined(GU_DIAGNOSTIC_PROBE) || defined(GU_FULL_UNLOCK) || defined(GU_CONSOLE_PREPARE)
+#error Graph-only configuration requires diagnostics without probe or release
+#endif
+#include <graph-platform-config.h> /* Isolated build output, never Configure.ps1. */
+#else
 #include "platform-config.h" /* Generated locally by Configure.ps1. */
+#endif
 static const EFI_GUID GuInternalPartition = GU_INTERNAL_PARTITION_INITIALIZER;
 static const EFI_GUID GuWindowsPartition = GU_WINDOWS_PARTITION_INITIALIZER;
 

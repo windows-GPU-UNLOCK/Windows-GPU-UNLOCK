@@ -110,6 +110,8 @@ static EFI_STATUS Run(int scenario) {
   Mode.Info=&ModeInfo;Mode.SizeOfInfo=sizeof(ModeInfo);Mode.MaxMode=1;
   Mode.FrameBufferBase=0xfc00000000;Mode.FrameBufferSize=3686400;Gop.Mode=&Mode;
   if(scenario==10)Gop.Mode=NULL;
+  if(scenario==16)Mode.Info=NULL;
+  if(scenario==17)Mode.SizeOfInfo=sizeof(ModeInfo)-1;
   Pci.GetLocation=Location;Pci.Pci.Read=Read;
   Driver.ImageHandle=H[2];Driver.DriverBindingHandle=H[2];Driver.Stop=DriverStop;
   Image.DeviceHandle=H[0];Image.FilePath=&EndPath;Image.ImageSize=12345;
@@ -118,6 +120,9 @@ static EFI_STATUS Run(int scenario) {
 }
 int main(void) {
   Check(Run(0)==EFI_SUCCESS,"shared console graph succeeds");
+#ifdef GU_GRAPH_ONLY
+  Check(strstr(Output,"capture-scope=graph-only no-gpu-mmio no-prom no-image-dump")!=NULL,"graph-only scope recorded");
+#endif
   Check(strstr(Output,"capture-complete=1")!=NULL,"complete marker");
   Check(strstr(Output,"attributes=0x0000000000000008")!=NULL,"child edge retained");
   Check(strstr(Output,"path-node raw=7f010400")!=NULL,"multi-instance separator retained");
@@ -133,6 +138,17 @@ int main(void) {
   Check(Run(9)==EFI_DEVICE_ERROR,"flush failure fails");
   Check(strstr(Output,"capture-complete=1")!=NULL,"footer cannot prove final flush success");
   Check(Run(10)==EFI_NOT_READY,"null GOP mode is incomplete");
+  for(int i=16;i<=17;i++) {
+#if GU_CONSOLE_AGGREGATE || defined(GU_PROBE_GENERIC) || defined(GU_GRAPH_ONLY)
+    Check(Run(i)==EFI_SUCCESS,"unavailable mode information is an observation in generic diagnostics");
+    Check(strstr(Output,"gop info-bytes=")!=NULL,"mode information availability is retained");
+    Check(strstr(Output,"gop width=")==NULL,"absent/undersized mode information is never dereferenced");
+    Check(strstr(Output,"capture-complete=1")!=NULL,"observation completeness grants no hardware admission");
+#else
+    Check(Run(i)==EFI_NOT_READY,"fixed-profile diagnostic retains its mode information requirement");
+    Check(strstr(Output,"incomplete reason=gop-info")!=NULL,"fixed-profile failure remains explicit");
+#endif
+  }
   const char *reasons[]={"opens-free","protocols-free","after-free","handles-free","variable-free"};
   for(int i=11;i<=15;i++) {
     Check(Run(i)==EFI_NOT_READY,"cleanup failure makes graph incomplete");

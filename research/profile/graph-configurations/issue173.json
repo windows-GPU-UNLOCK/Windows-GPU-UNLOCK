@@ -1,0 +1,22 @@
+{
+  "Id": "issue173",
+  "Board": "MEG Z790 ACE (MS-7D86)",
+  "ManufacturerPrefix": "Micro-Star",
+  "Bios": "1.G0",
+  "CpuToken": "i9-13900K",
+  "Adapters": [
+    {
+      "Vendor": "10DE",
+      "Device": "2216",
+      "Subsystem": "48973842"
+    },
+    {
+      "Vendor": "8086",
+      "Device": "A780",
+      "Subsystem": "7D861462"
+    }
+  ],
+  "SchemaVersion": 1,
+  "Scope": "graph-only",
+  "ManufacturerMatch": "prefix"
+}

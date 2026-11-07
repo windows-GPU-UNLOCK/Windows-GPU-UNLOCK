@@ -103,6 +103,11 @@ Check 'digest' {param($e) $e.TreeSha256='0'*64}
 Put 'research/pci-decode/snapshot.c' 'changed readonly input'
 Check 'external readonly source changed' {param($e)}
 Put 'research/pci-decode/snapshot.c' 'synthetic input'
+$profileGatePath=Join-Path $sandbox 'internal-boot/unlock/local-profile.ps1'
+$previousProfileGate=[IO.File]::ReadAllText($profileGatePath)
+Put 'internal-boot/unlock/local-profile.ps1' 'changed profile intake source'
+Check 'profile intake source change invalidates existing LOCAL replay evidence' {}
+Put 'internal-boot/unlock/local-profile.ps1' $previousProfileGate
 # A firmware without an EDID driver releases the GPU unlike every reviewed profile, so its evidence
 # must also hold the driver-release replay on its own graph, and that replay must have passed.
 $noEdidHeader=$header.Replace('#define GU_NO_EDID_DRIVER 0','#define GU_NO_EDID_DRIVER 1')
@@ -220,35 +225,41 @@ $baseline=$normalBaseline
 Put 'internal-boot/unlock/profile-local.h' $header
 Put 'research/profile/local/profile.json' ($report|ConvertTo-Json -Depth 8)
 Check 'release replay job on a profile that has an EDID driver' {param($e) $e.Results|Add-Member NoteProperty 'release replay, no EDID driver (real graph)' @{Exit=0;Expected=0}}
-foreach($children in @(3,4)) {
- $manyHeader=$noEdidHeader+"`n#define GU_LOCAL_CONSOLE_AGGREGATE 0`n#define GU_LOCAL_CHILD_COUNT $children`n"
- Put 'internal-boot/unlock/profile-local.h' $manyHeader
- $manyHw=Get-LocalProfile $sandbox
- if(!$manyHw.NoEdidDriver -or $manyHw.ConsoleAggregate -or $manyHw.ChildCount -ne $children){throw 'Many-child topology parsed incorrectly'};$checks++
- Check 'previous evidence cannot authorize a many-child header' {}
- $manyReport=[ordered]@{Format=1;ProfileName=$hw.Name;HeaderSha256=$manyHw.HeaderSha256;PromSha256=$prom;HardwareTested=$false;Fixtures=$fixtures;Replay=[ordered]@{NoEdidDriver=$true;Aggregate=$false;ChildCount=$children}}
- Put 'research/profile/local/profile.json' ($manyReport|ConvertTo-Json -Depth 8)
- $e=$normalBaseline|ConvertFrom-Json
- $e.HeaderSha256=$manyHw.HeaderSha256;$e.ProfileReportSha256=Get-GuSha256 (Join-Path $sandbox 'research/profile/local/profile.json')
- $e.Results=$jobsNoEdid;$baseline=$e|ConvertTo-Json -Depth 10
- Check 'matching many-child evidence and release replay' {} $true
- foreach($token in @('null','true','"3"','"4"','3.0','4e0','0','5',(''+($children -bxor 1)))) {
-  $text=$manyReport|ConvertTo-Json -Depth 8
-  Put 'research/profile/local/profile.json' ([regex]::Replace($text,'"ChildCount":\s*[34]\b',('"ChildCount": '+$token)))
-  Check ('many-child report mismatch '+$token) {param($e) $e.ProfileReportSha256=Get-GuSha256 (Join-Path $sandbox 'research/profile/local/profile.json')}
- }
- foreach($bad in @($manyHeader.Replace('GU_NO_EDID_DRIVER 1','GU_NO_EDID_DRIVER 0'),
-                    $manyHeader.Replace('GU_LOCAL_CONSOLE_AGGREGATE 0','GU_LOCAL_CONSOLE_AGGREGATE 1'))) {
-  Put 'internal-boot/unlock/profile-local.h' $bad
+foreach($noEdidMode in @($false,$true)) {
+ $manyBase=if($noEdidMode){$noEdidHeader}else{$header}
+ foreach($children in @(3,4)) {
+  $manyHeader=$manyBase+"`n#define GU_LOCAL_CONSOLE_AGGREGATE 0`n#define GU_LOCAL_CHILD_COUNT $children`n"
+  Put 'internal-boot/unlock/profile-local.h' $manyHeader
+  $manyHw=Get-LocalProfile $sandbox
+  if($manyHw.NoEdidDriver -ne $noEdidMode -or $manyHw.ConsoleAggregate -or $manyHw.ChildCount -ne $children){throw 'Many-child topology parsed incorrectly'};$checks++
+  Check 'previous evidence cannot authorize a many-child header' {}
+  $manyReport=[ordered]@{Format=1;ProfileName=$hw.Name;HeaderSha256=$manyHw.HeaderSha256;PromSha256=$prom;HardwareTested=$false;Fixtures=$fixtures;Replay=[ordered]@{NoEdidDriver=$noEdidMode;Aggregate=$false;ChildCount=$children}}
+  Put 'research/profile/local/profile.json' ($manyReport|ConvertTo-Json -Depth 8)
+  $e=$normalBaseline|ConvertFrom-Json
+  $e.HeaderSha256=$manyHw.HeaderSha256;$e.ProfileReportSha256=Get-GuSha256 (Join-Path $sandbox 'research/profile/local/profile.json')
+  $e.Results=if($noEdidMode){$jobsNoEdid}else{$jobs};$baseline=$e|ConvertTo-Json -Depth 10
+  Check 'matching many-child evidence and release replay with either EDID mode' {} $true
+  Check 'changed EDID replay mode cannot be authorized by rehashing its report' {param($e)
+   $different=$manyReport|ConvertTo-Json -Depth 8|ConvertFrom-Json
+   $different.Replay.NoEdidDriver=!$noEdidMode
+   Put 'research/profile/local/profile.json' ($different|ConvertTo-Json -Depth 8)
+   $e.ProfileReportSha256=Get-GuSha256 (Join-Path $sandbox 'research/profile/local/profile.json')
+  }
+  foreach($token in @('null','true','"3"','"4"','3.0','4e0','0','5',(''+($children -bxor 1)))) {
+   $text=$manyReport|ConvertTo-Json -Depth 8
+   Put 'research/profile/local/profile.json' ([regex]::Replace($text,'"ChildCount":\s*[34]\b',('"ChildCount": '+$token)))
+   Check ('many-child report mismatch '+$token) {param($e) $e.ProfileReportSha256=Get-GuSha256 (Join-Path $sandbox 'research/profile/local/profile.json')}
+  }
+  Put 'internal-boot/unlock/profile-local.h' ($manyHeader.Replace('GU_LOCAL_CONSOLE_AGGREGATE 0','GU_LOCAL_CONSOLE_AGGREGATE 1'))
   $accepted=$true;try{$null=Get-LocalProfile $sandbox}catch{$accepted=$false}
-  if($accepted){throw 'Many-child profile escaped no-EDID/nonaggregate restriction'};$checks++
+  if($accepted){throw 'Many-child profile escaped nonaggregate restriction'};$checks++
+  $baseline=$normalBaseline
  }
- $baseline=$normalBaseline
-}
-foreach($children in @(0,5)) {
- Put 'internal-boot/unlock/profile-local.h' ($noEdidHeader+"`n#define GU_LOCAL_CONSOLE_AGGREGATE 0`n#define GU_LOCAL_CHILD_COUNT $children`n")
- $accepted=$true;try{$null=Get-LocalProfile $sandbox}catch{$accepted=$false}
- if($accepted){throw 'Invalid no-EDID child count accepted'};$checks++
+ foreach($children in @(0,5)) {
+  Put 'internal-boot/unlock/profile-local.h' ($manyBase+"`n#define GU_LOCAL_CONSOLE_AGGREGATE 0`n#define GU_LOCAL_CHILD_COUNT $children`n")
+  $accepted=$true;try{$null=Get-LocalProfile $sandbox}catch{$accepted=$false}
+  if($accepted){throw 'Invalid child count accepted'};$checks++
+ }
 }
 Put 'internal-boot/unlock/profile-local.h' $header
 Put 'research/profile/local/profile.json' ($report|ConvertTo-Json -Depth 8)

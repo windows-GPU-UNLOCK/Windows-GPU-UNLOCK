@@ -194,8 +194,8 @@ static EFI_STATUS ExtraDisconnect(EFI_HANDLE h,EFI_HANDLE agent,EFI_HANDLE child
   }
 #else
   if(agent==FX_EdidAgent) {
-    Check(Calls==3 || (Full.ChildCount==2 && Calls==4),"EDID stops follow console detach in child order");
-    Check(h==(Calls==3?FX_Rtx:FX_EdidChild) && agent==FX_EdidAgent,"only each reviewed EDID child stopped");
+    Check(Calls>=3 && (UINTN)Calls<3+Full.ChildCount,"EDID stops follow console detach in child order");
+    Check(h==(Calls==3?FX_Rtx:AdditionalChildren[Calls-4]) && agent==FX_EdidAgent,"only each reviewed EDID child stopped");
     if(FullScenario==1 || (FullScenario==2 && (UINTN)Calls==2+Full.ChildCount))return EFI_DEVICE_ERROR;
     if(FullScenario==29)return EFI_WARN_UNKNOWN_GLYPH;
     Drop(h,agent,&EdidGuid);Phase=3;
@@ -254,6 +254,19 @@ static EFI_STATUS FullLog(VOID *ctx,const char *event,EFI_STATUS status) {
     }
 #else
     if(FullScenario==28)Drop(LastDisplayChild(),FX_EdidAgent,&EdidGuid);
+    if(FullScenario>=39 && FullScenario<=42) {
+      UINTN changed=0;
+      for(UINTN i=0;i<Live.Count;i++) {
+        EDGE *e=&Live.Edges[i];
+        if(e->Handle!=LastDisplayChild() || !GuGuidEqual(&e->Protocol,&EdidGuid))continue;
+        if(FullScenario==39)e->Agent=FX_OutAgent;
+        if(FullScenario==40){EDGE duplicate=*e;Live.Edges[Live.Count++]=duplicate;changed++;break;}
+        if(FullScenario==41)e->Controller=FX_RtxPci;
+        if(FullScenario==42)e->Count=2;
+        changed++;
+      }
+      Check(changed==1,"last display child's EDID ownership mutation was actually injected");
+    }
 #endif
   }
   if(!strcmp(event,"detach-nvidia-gop-intent")) {

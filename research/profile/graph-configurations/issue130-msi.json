@@ -1,0 +1,22 @@
+{
+  "Id": "issue130-msi",
+  "Board": "MS-15K1",
+  "ManufacturerPrefix": "Micro-Star International Co., Ltd.",
+  "ManufacturerMatch": "exact",
+  "Bios": "E15K1IMS.114",
+  "CpuToken": "i7-13620H",
+  "Adapters": [
+    {
+      "Vendor": "8086",
+      "Device": "A7A8",
+      "Subsystem": "13B91462"
+    },
+    {
+      "Vendor": "10DE",
+      "Device": "28A1",
+      "Subsystem": "13B91462"
+    }
+  ],
+  "SchemaVersion": 1,
+  "Scope": "graph-only"
+}

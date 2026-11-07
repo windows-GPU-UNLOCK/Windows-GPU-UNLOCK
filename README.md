@@ -2,7 +2,7 @@
 
 **English** | [한국어](README.ko.md)
 
-Contributor tooling: [entry-point inventory and cleanup proposal](docs/ENTRYPOINT-PLAN.en.md).
+Contributor tooling: [one diagnostic workflow](docs/CAPTURE-SETUP.en.md).
 
 Experimental UEFI GPU unlock and direct Windows handoff, expanded through
 community contributions.
@@ -17,23 +17,28 @@ community contributions.
 
 | Your goal | What to do |
 | :--- | :--- |
-| **I'm new. What information should I report?** | [Beginner guide: check your PC and share results](docs/START-HERE.en.md) |
-| **I already have capture files from my PC** | [Check those files offline](docs/START-HERE.en.md#2--check-existing-files) |
+| **I'm new. What information should I report?** | [Open Start-Capture and share its report](docs/CAPTURE-SETUP.en.md) |
+| **I already have capture files from my PC** | [Open the same launcher with the saved folder](docs/CAPTURE-SETUP.en.md#start-here) |
 | **I want to know which setups have worked** | [Reported setups and their limits](docs/CONFIRMED-SETUPS.en.md) |
 | **I'm ready to investigate an unlock** | [Check the exact configuration and boot route first](docs/COMPATIBILITY.en.md) |
 
 ### Quick check · No reboot
 
-Download **Code → Download ZIP**, extract it, and open PowerShell in the extracted project folder. With Python 3.10+ installed, run:
+Download **Code → Download ZIP**, extract the complete source tree, and
+double-click **`Start-Capture.cmd`**. If you already have captures, paste their
+folder when asked. Otherwise press Enter for Windows observations.
 
-```powershell
-python -I .\tools\collect_compatibility.py
-```
-
-This prints hardware/driver information; it does not unlock, change settings or upload anything. **`not-assessed` and `can_unlock: false` are normal.** Remove personal details from the output, then paste the reviewed text into a [compatibility report](https://github.com/impacifist/Windows-GPU-UNLOCK/issues/new?template=compatibility.yml). Do not attach firmware or raw dumps.
+The launcher selects relevant offline checks and resumes previous results.
+Unknown boards, mixed GPU vendors and duplicate adapters retain a diagnostic
+path. Review the single `report.json` before adding it to your issue.
+`hardware_tested: false` and `write_eligible: false` are expected.
 
 > [!TIP]
-> No Python or terminal experience? The [step-by-step guide](docs/START-HERE.en.md) explains how to start, what the result means and what to share. You can also enter hardware details manually; no EFI test is required to report findings.
+> Windows observations need no Python or compiler. Python is needed for saved
+> file parsing. Read the [single-workflow guide](docs/CAPTURE-SETUP.en.md) before
+> choosing the optional graph-only USB observation. No EFI test is required to
+> report findings, and reopening the launcher does not automatically request
+> another attempt.
 
 ## Community
 

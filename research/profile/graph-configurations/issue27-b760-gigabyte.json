@@ -1,0 +1,13 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue27-b760-gigabyte",
+  "Scope": "graph-only",
+  "Board": "B760M DS3H DDR4",
+  "ManufacturerPrefix": "Gigabyte",
+  "ManufacturerMatch": "prefix",
+  "Bios": "F16",
+  "CpuToken": "i5-12400F",
+  "Adapters": [
+    { "Vendor": "10DE", "Device": "2786", "Subsystem": "41271458" }
+  ]
+}

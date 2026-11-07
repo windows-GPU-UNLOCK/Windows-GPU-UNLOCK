@@ -1,0 +1,22 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue187",
+  "Scope": "graph-only",
+  "Board": "MS-Terminator Z790M D5",
+  "ManufacturerPrefix": "Maxsun",
+  "ManufacturerMatch": "exact",
+  "Bios": "H7.8G",
+  "CpuToken": "i7-13700K",
+  "Adapters": [
+    {
+      "Vendor": "10DE",
+      "Device": "2206",
+      "Subsystem": "146710DE"
+    },
+    {
+      "Vendor": "8086",
+      "Device": "A780",
+      "Subsystem": "00000000"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue182",
+  "Scope": "graph-only",
+  "Board": "B550-A PRO (MS-7C56)",
+  "ManufacturerPrefix": "Micro-Star",
+  "Bios": "A.J0",
+  "CpuToken": "5700X",
+  "Adapters": [
+    {
+      "Vendor": "10DE",
+      "Device": "2486",
+      "Subsystem": "147A10DE"
+    }
+  ],
+  "ManufacturerMatch": "prefix"
+}

@@ -1,0 +1,17 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue179",
+  "Scope": "graph-only",
+  "Board": "TUF GAMING X570-PRO (WI-FI)",
+  "ManufacturerPrefix": "ASUSTeK",
+  "Bios": "5044",
+  "CpuToken": "5800X3D",
+  "Adapters": [
+    {
+      "Vendor": "10DE",
+      "Device": "2208",
+      "Subsystem": "39673842"
+    }
+  ],
+  "ManufacturerMatch": "prefix"
+}

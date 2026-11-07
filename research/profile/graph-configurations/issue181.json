@@ -1,0 +1,17 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue181",
+  "Scope": "graph-only",
+  "Board": "PRIME B650M-A II",
+  "ManufacturerPrefix": "ASUSTeK",
+  "Bios": "1654",
+  "CpuToken": "7500F",
+  "Adapters": [
+    {
+      "Vendor": "10DE",
+      "Device": "2504",
+      "Subsystem": "153610DE"
+    }
+  ],
+  "ManufacturerMatch": "prefix"
+}

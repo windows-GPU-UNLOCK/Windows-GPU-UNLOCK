@@ -1,0 +1,17 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue51",
+  "Scope": "graph-only",
+  "Board": "TUF GAMING X570-PLUS (WI-FI)",
+  "ManufacturerPrefix": "ASUSTeK",
+  "ManufacturerMatch": "prefix",
+  "Bios": "4002",
+  "CpuToken": "5900X",
+  "Adapters": [
+    {
+      "Vendor": "10DE",
+      "Device": "2204",
+      "Subsystem": "87B31043"
+    }
+  ]
+}

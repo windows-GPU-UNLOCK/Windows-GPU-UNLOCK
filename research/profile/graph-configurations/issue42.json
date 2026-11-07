@@ -1,0 +1,15 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue42",
+  "Scope": "graph-only",
+  "Board": "PRIME Z690-A",
+  "ManufacturerPrefix": "ASUSTeK",
+  "ManufacturerMatch": "prefix",
+  "Bios": "4505",
+  "CpuToken": "i9-14900K",
+  "Adapters": [
+    { "Vendor": "10DE", "Device": "2204", "Subsystem": "147D10DE" },
+    { "Vendor": "10DE", "Device": "2203", "Subsystem": "161810DE" },
+    { "Vendor": "8086", "Device": "A780", "Subsystem": "86941043" }
+  ]
+}

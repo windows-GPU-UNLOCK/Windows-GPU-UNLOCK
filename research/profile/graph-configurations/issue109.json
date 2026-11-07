@@ -1,0 +1,17 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue109",
+  "Scope": "graph-only",
+  "Board": "B560M DS3H V2",
+  "ManufacturerPrefix": "Gigabyte",
+  "Bios": "F7 RB",
+  "CpuToken": "i5-11400F",
+  "Adapters": [
+    {
+      "Vendor": "10DE",
+      "Device": "2487",
+      "Subsystem": "40721458"
+    }
+  ],
+  "ManufacturerMatch": "prefix"
+}

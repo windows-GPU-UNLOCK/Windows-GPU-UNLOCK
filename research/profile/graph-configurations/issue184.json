@@ -1,0 +1,22 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue184",
+  "Scope": "graph-only",
+  "Board": "MAG X870E TOMAHAWK WIFI (MS-7E59)",
+  "ManufacturerPrefix": "Micro-Star",
+  "ManufacturerMatch": "prefix",
+  "Bios": "2.A91",
+  "CpuToken": "9800X3D",
+  "Adapters": [
+    {
+      "Vendor": "10DE",
+      "Device": "2204",
+      "Subsystem": "38821462"
+    },
+    {
+      "Vendor": "1002",
+      "Device": "13C0",
+      "Subsystem": "7E591462"
+    }
+  ]
+}

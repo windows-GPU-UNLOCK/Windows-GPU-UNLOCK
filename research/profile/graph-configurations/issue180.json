@@ -1,0 +1,22 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue180",
+  "Scope": "graph-only",
+  "Board": "B550 AORUS ELITE V2",
+  "ManufacturerPrefix": "Gigabyte",
+  "Bios": "F19",
+  "CpuToken": "5600G",
+  "Adapters": [
+    {
+      "Vendor": "10DE",
+      "Device": "2489",
+      "Subsystem": "153C10DE"
+    },
+    {
+      "Vendor": "1002",
+      "Device": "1638",
+      "Subsystem": "D0001458"
+    }
+  ],
+  "ManufacturerMatch": "prefix"
+}

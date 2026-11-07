@@ -68,7 +68,7 @@ function Get-LocalProfile([string]$Repo) {
   $consoleAggregate=$aggregateRows[0].Value.EndsWith(' 1');$childCount=[int]$childRows[0].Value.Substring($childRows[0].Value.Length-1)
  }
  if($consoleAggregate -and $noEdidDriver){throw 'Aggregate local profiles require an EDID driver'}
- if($childCount -gt 2 -and ($consoleAggregate -or !$noEdidDriver)){throw 'Three/four children require non-aggregate firmware without an EDID driver'}
+ if($childCount -gt 2 -and $consoleAggregate){throw 'Three/four children require non-aggregate firmware'}
  return [ordered]@{
   Define='-DGU_PROFILE_LOCAL';Name=(Value 'GU_PROFILE_NAME' '"(LOCAL-[0-9a-f]{8}-[0-9a-f]{8}-[0-9a-f]{8})"')
   TargetPci=(Value 'GU_BOARD_ID' '0x([0-9a-f]{8})U');Subsystem=(Value 'GU_BOARD_SUBSYSTEM' '0x([0-9a-f]{8})U')

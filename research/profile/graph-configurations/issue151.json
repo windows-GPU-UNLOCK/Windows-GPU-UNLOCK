@@ -1,0 +1,14 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue151",
+  "Scope": "graph-only",
+  "Board": "X570 AORUS ELITE",
+  "ManufacturerPrefix": "Gigabyte",
+  "ManufacturerMatch": "prefix",
+  "Bios": "F40",
+  "CpuToken": "5800X",
+  "Adapters": [
+    { "Vendor": "10DE", "Device": "2216", "Subsystem": "403F1458" },
+    { "Vendor": "10DE", "Device": "2C02", "Subsystem": "89E01043" }
+  ]
+}

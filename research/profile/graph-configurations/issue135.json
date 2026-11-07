@@ -1,0 +1,17 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue135",
+  "Scope": "graph-only",
+  "Board": "TUF GAMING B550M-E",
+  "ManufacturerPrefix": "ASUSTeK",
+  "ManufacturerMatch": "prefix",
+  "Bios": "4101",
+  "CpuToken": "5600X",
+  "Adapters": [
+    {
+      "Vendor": "10DE",
+      "Device": "2489",
+      "Subsystem": "248910DE"
+    }
+  ]
+}

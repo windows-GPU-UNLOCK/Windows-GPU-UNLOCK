@@ -1,0 +1,14 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue199",
+  "Scope": "graph-only",
+  "Board": "PRO Z690-A WIFI (MS-7D25)",
+  "ManufacturerPrefix": "Micro-Star",
+  "ManufacturerMatch": "prefix",
+  "Bios": "A.A0",
+  "CpuToken": "i7-12700",
+  "Adapters": [
+    { "Vendor": "10DE", "Device": "2487", "Subsystem": "40741458" },
+    { "Vendor": "8086", "Device": "4680", "Subsystem": "7D251462" }
+  ]
+}

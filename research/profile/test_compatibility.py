@@ -100,6 +100,51 @@ class CompatibilityTests(unittest.TestCase):
         self.populate(count=1)
         self.assert_reason('needs_data', 'capture_count')
 
+    def test_issue20_3080_fe_observation_does_not_borrow_ga102_admission(self):
+        # Reported identity/VRAM in a synthetic graph, not supplied PROM/images.
+        text=self.populate(count=1,board=0x220610de,chip=0xb72000a1,memory=0x2800,
+                           no_edid=False,children=1).replace('38811462','161210de')
+        (self.folder/'DIAG00.TXT').write_text(text,encoding='ascii')
+        self.assert_reason('outside_scope','gpu_scope')
+        result=self.result()
+        self.assertIn('capture_count',[c['code'] for c in result['checks']])
+        observation=result['observations'][0]
+        self.assertTrue(observation['available'])
+        self.assertEqual(observation['display_controllers'][0]['pci_id'],'220610de')
+        self.assertEqual(observation['device_memory_size_mib'],10240)
+
+    def test_explicit_envelope_refusal_is_explained_without_profile_analysis(self):
+        text = ('incomplete reason=probe-unreviewed-envelope status=0x8000000000000003\n'
+                'capture-complete=0\ndiagnostic-result status=0x8000000000000006\n')
+        for index in range(2):
+            (self.folder / f'DIAG{index:02d}.TXT').write_text(text, encoding='ascii')
+        with patch.object(checker.mp, 'analyze', side_effect=AssertionError('no profile analysis')):
+            self.assert_reason('invalid_data', 'probe_envelope_refused')
+        result = self.result()
+        self.assertEqual([x['available'] for x in result['observations']], [False, False])
+        with self.assertRaises(checker.mp.Refused):
+            checker.mp.parse_handles(text)
+
+    def test_ambiguous_or_conflicting_refusal_markers_remain_invalid_graph(self):
+        base = ('incomplete reason=probe-unreviewed-envelope status=0x8000000000000003\n'
+                'capture-complete=0\ndiagnostic-result status=0x8000000000000006\n')
+        for extra in ('capture-complete=1\n',
+                      'diagnostic-result status=0x0000000000000000\n',
+                      'incomplete reason=PRIVATE-UNTRUSTED status=0x1\n'):
+            for index in range(2):
+                (self.folder / f'DIAG{index:02d}.TXT').write_text(base + extra, encoding='ascii')
+            self.assert_reason('invalid_data', 'invalid_graph')
+
+    def test_gop_failure_is_not_hidden_by_envelope_refusal(self):
+        text = ('incomplete reason=probe-unreviewed-envelope status=0x8000000000000003\n'
+                'incomplete reason=gop-info status=0x8000000000000006\n'
+                'capture-complete=0\ndiagnostic-result status=0x8000000000000006\n')
+        for index in range(2):
+            (self.folder / f'DIAG{index:02d}.TXT').write_text(text, encoding='ascii')
+        with patch.object(checker.mp, 'analyze', side_effect=AssertionError('no profile analysis')):
+            self.assert_reason('invalid_data', 'multiple_capture_failures')
+        self.assertNotIn('probe_envelope_refused', [x['code'] for x in self.result()['checks']])
+
     def test_secondary_display_path_must_agree_across_cold_boots(self):
         for no_edid in (False, True):
             with self.subTest(no_edid=no_edid):
@@ -113,7 +158,7 @@ class CompatibilityTests(unittest.TestCase):
 
     def test_generated_header_and_report_pin_nonaggregate_child_count(self):
         for no_edid in (False, True):
-            for children in (1, 2):
+            for children in (1, 2, 3, 4):
                 with self.subTest(no_edid=no_edid, children=children):
                     self.populate(no_edid=no_edid, children=children)
                     # This test covers topology metadata, not the native PROM parser.
@@ -123,6 +168,59 @@ class CompatibilityTests(unittest.TestCase):
                     self.assertIn(f'#define GU_LOCAL_CHILD_COUNT {children}\n', header)
                     self.assertIs(report['Replay']['Aggregate'], False)
                     self.assertEqual(report['Replay']['ChildCount'], children)
+
+    def test_bound_edid_five_children_refusal_is_diagnosable_without_relaxation(self):
+        self.populate(no_edid=False, children=5, count=1)
+        report = self.result()
+        self.assertEqual(report['status'], 'outside_scope')
+        entries = [c for c in report['checks'] if c['code'] == 'topology_scope']
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]['topology_detail'], {
+            'reason': 'unsupported_display_children', 'display_children': 5, 'allowed_children': 4})
+        self.assertIn('capture_count', [c['code'] for c in report['checks']])
+        self.assertIs(report['hardware_tested'], False)
+        self.assertIs(report['write_eligible'], False)
+        # The generator itself must still stop before any private asset work.
+        with self.assertRaises(checker.mp.TopologyRefused):
+            checker.mp.analyze(self.folder/'DIAG00.TXT', None, self.envelope)
+
+    def test_topology_detail_rejects_unreviewed_fields_and_values(self):
+        for reason, values in [('PRIVATE-PATH', {}), ('unsupported_display_children', {'raw':'PRIVATE'}),
+                               ('unsupported_display_children', {'display_children': True}),
+                               ('unsupported_display_children', {'display_children': 4097})]:
+            with self.assertRaises(ValueError):
+                checker.mp.TopologyRefused('internal detail never exported', reason, **values)
+
+    def test_active_edid_elsewhere_is_not_absence_on_target(self):
+        text = self.populate(no_edid=False)
+        old = (f'protocol guid={checker.mp.EDID_DISCOVERED}\n'
+               'opens status=0x0000000000000000 count=0x1\n'
+               'open agent=0x9 controller=0x2 attributes=0x10 count=0x1\n')
+        new = (f'protocol guid={checker.mp.EDID_DISCOVERED}\n'
+               'opens status=0x0000000000000000 count=0x0\n')
+        self.assertIn(old, text)
+        for path in self.folder.glob('DIAG*.TXT'):
+            path.write_text(text.replace(old, new), encoding='ascii')
+        report = self.result()
+        entries = [c for c in report['checks'] if c['code'] == 'topology_scope']
+        self.assertEqual(len(entries), 2)
+        self.assertEqual(entries[0]['topology_detail'], {
+            'reason': 'active_edid_without_target_owner', 'active_edid_handles': 1})
+        self.assertEqual(report['status'], 'outside_scope')
+        self.assertIs(report['write_eligible'], False)
+
+    def test_unexportable_topology_count_remains_a_reported_refusal(self):
+        self.populate(count=1)
+        def oversized(*args, **kwargs):
+            raise checker.mp.TopologyRefused('not exported', 'unsupported_display_children',
+                                            display_children=4097, allowed_children=2)
+        with patch.object(checker.mp, 'analyze', side_effect=oversized):
+            report = self.result()
+        self.assertEqual(report['status'], 'invalid_data')
+        self.assertIn('observations_invalid', [c['code'] for c in report['checks']])
+        self.assertTrue(all('topology_detail' not in c for c in report['checks']))
+        self.assertIs(report['hardware_tested'], False)
+        self.assertIs(report['write_eligible'], False)
 
     def test_complete_root_and_bridge_ancestry_must_agree_across_cold_boots(self):
         changes=(('02010c00d041030a00000000','02010c00d041030a01000000'),

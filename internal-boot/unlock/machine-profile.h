@@ -79,8 +79,8 @@
 #if (GU_LOCAL_CONSOLE_AGGREGATE != 0 && GU_LOCAL_CONSOLE_AGGREGATE != 1) || GU_LOCAL_CHILD_COUNT < 1 || GU_LOCAL_CHILD_COUNT > 4
 #error Local topology requires aggregate 0/1 and child count 1..4
 #endif
-#if GU_LOCAL_CHILD_COUNT > 2 && (GU_LOCAL_CONSOLE_AGGREGATE || GU_NO_EDID_DRIVER != 1)
-#error Three/four children require a non-aggregate profile without an EDID driver
+#if GU_LOCAL_CHILD_COUNT > 2 && GU_LOCAL_CONSOLE_AGGREGATE
+#error Three/four children require a non-aggregate profile
 #endif
 #else
 /* Compatibility with earlier non-aggregate generated headers. */

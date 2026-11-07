@@ -1,0 +1,7 @@
+{
+  "ReadStatus": "observed",
+  "ProtectionState": "off",
+  "ConversionState": "fully-encrypted",
+  "EncryptionPercentage": 100,
+  "FullyDecryptedObserved": false
+}

@@ -10,6 +10,12 @@ try {
  if($LASTEXITCODE -ne 0){throw 'Diagnostic tests compile failed'}
  & ./build/diagnostic/test-diagnostic.exe
  if($LASTEXITCODE -ne 0){throw 'Diagnostic tests failed'}
+ # The same mocked services exercise the generic graph-only observation contract.
+ # Neither variant supplies GPU MMIO or driver mutation services.
+ & $Clang -std=c11 -O1 -Wall -Wextra -Werror -D_CRT_SECURE_NO_WARNINGS -DGU_DIAGNOSTIC_ONLY -DGU_GRAPH_ONLY -I ../../deps/edk2/MdePkg/Include -I ../../deps/edk2/MdePkg/Include/X64 test_diagnostic.c -o build/diagnostic/test-diagnostic-graph.exe
+ if($LASTEXITCODE -ne 0){throw 'Graph-only diagnostic tests compile failed'}
+ & ./build/diagnostic/test-diagnostic-graph.exe
+ if($LASTEXITCODE -ne 0){throw 'Graph-only diagnostic tests failed'}
  # Probe regression tests: the real probe.c behind simulated EFI services for
  # both reviewed profiles. No GPU, firmware or driver access is available.
  foreach($profile in @('GU_PROFILE_B650M_3090FE','GU_PROFILE_B660M_3070TI','GU_PROFILE_B660M_3090TI','GU_PROFILE_X870_3090TI','GU_PROFILE_B660PLUS_3060')) {

@@ -5,7 +5,10 @@
 You can help this project **without attempting an unlock**. Start with a Windows inventory, or check capture files you already have.
 
 > [!TIP]
-> **New here? Choose option 1.** You do not need a USB stick, compiler, firmware files, administrator terminal or BIOS changes to submit an inventory report.
+> **Start with [Start-Capture.cmd](CAPTURE-SETUP.en.md).** It selects the relevant
+> checks and keeps one resumable report. The individual commands below are
+> manual references for reproducing a reviewed test; you do not need to run
+> them all. Windows observations need no Python, USB, compiler or elevation.
 
 | What you have | Start here | What you get |
 | :--- | :--- | :--- |

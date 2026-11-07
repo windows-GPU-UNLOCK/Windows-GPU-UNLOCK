@@ -11,6 +11,9 @@
 #include <Protocol/PciIo.h>
 #include <Guid/GlobalVariable.h>
 #include "../unlock/machine-profile.h"
+#if defined(GU_GRAPH_ONLY) && (!defined(GU_DIAGNOSTIC_ONLY) || defined(GU_DIAGNOSTIC_PROBE) || defined(GU_FULL_UNLOCK) || defined(GU_CONSOLE_PREPARE))
+#error Graph-only capture must not include probe or release
+#endif
 #ifdef GU_DIAGNOSTIC_PROBE
 #include "probe.h"
 #endif
@@ -149,9 +152,9 @@ static VOID Details(CAPTURE *c,EFI_HANDLE h,EFI_GUID *g) {
       Field(c,"gop pixel-format=0x",gp->Mode->Info->PixelFormat);
       Field(c," info-bytes=0x",gp->Mode->SizeOfInfo);End(c);
     } else {
-#if GU_CONSOLE_AGGREGATE || defined(GU_PROBE_GENERIC)
+#if GU_CONSOLE_AGGREGATE || defined(GU_PROBE_GENERIC) || defined(GU_GRAPH_ONLY)
       /* Aggregate/pathless GOPs legitimately lack Mode->Info on this firmware;
-         record it as an observation, not a capture failure (generic probe: topology unknown). */
+         record the absence without assuming a board's topology in generic diagnostics. */
       Field(c,"gop info-bytes=0x",gp->Mode->SizeOfInfo);End(c);
 #else
       Problem(c,"gop-info",EFI_NOT_READY);
@@ -177,6 +180,9 @@ EFI_STATUS GuCaptureGraphOnVolume(EFI_SYSTEM_TABLE *t,EFI_FILE_PROTOCOL *file,EF
   static CAPTURE c;
   c.Table=t;c.File=file;c.DumpRoot=root;c.Complete=TRUE;c.Io=EFI_SUCCESS;c.Used=0;c.Total=0;
   Text(&c,"gpu-console-graph-v1 observational-only; no-detach no-unlock no-nvram-write\r\n");
+#ifdef GU_GRAPH_ONLY
+  Text(&c,"capture-scope=graph-only no-gpu-mmio no-prom no-image-dump\r\n");
+#endif
   Field(&c,"console out=0x",(UINTN)t->ConsoleOutHandle);Field(&c," error=0x",(UINTN)t->StandardErrorHandle);
   Field(&c," input=0x",(UINTN)t->ConsoleInHandle);End(&c);
   Variables(&c);

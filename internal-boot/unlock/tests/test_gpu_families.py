@@ -165,7 +165,7 @@ class FamilyTests(unittest.TestCase):
             with self.subTest(defines=defines):
                 self.assertNotEqual(compile_source('#include "firmware-profile.h"\n', defines).returncode, 0)
 
-    def test_three_four_children_are_only_nonaggregate_no_edid(self):
+    def test_three_four_children_require_nonaggregate_with_either_edid_mode(self):
         for children,no_edid,aggregate in itertools.product((0,3,4,5),(0,1),(0,1)):
             with self.subTest(children=children,no_edid=no_edid,aggregate=aggregate),tempfile.TemporaryDirectory() as directory:
                 folder=Path(directory);local=folder/'profile-local.h'
@@ -176,7 +176,7 @@ class FamilyTests(unittest.TestCase):
                 overlay.write_text(json.dumps({'version':0,'roots':[{'type':'file','name':str(ROOT/'profile-local.h'),
                     'external-contents':str(local),'use-external-name':False}]}))
                 done=compile_source('#include "machine-profile.h"\n',['-DGU_PROFILE_LOCAL','-DGU_HEADLESS_RESEARCH','-DGU_FULL_UNLOCK'],['-ivfsoverlay',str(overlay)])
-                self.assertEqual(done.returncode==0,children in (3,4) and no_edid==1 and aggregate==0,done.stderr)
+                self.assertEqual(done.returncode==0,children in (3,4) and aggregate==0,done.stderr)
 
     def test_local_segment_bounds_and_legacy_default_cannot_be_overridden(self):
         base=('#define GU_LOCAL_PROFILE_GENERATOR 1\n#define GU_CHIP_ID 0xb72000a1U\n'

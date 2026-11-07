@@ -2,7 +2,7 @@
 
 [English](README.md) | **한국어**
 
-기여자 도구: [진입점 목록 및 정리 제안](docs/ENTRYPOINT-PLAN.ko.md).
+기여자 도구: [하나의 진단 흐름](docs/CAPTURE-SETUP.ko.md).
 
 커뮤니티 기여로 확장하는 실험용 UEFI GPU 언락과 Windows 직접 인계 구현입니다.
 
@@ -16,23 +16,26 @@
 
 | 목표 | 진행 방법 |
 | :--- | :--- |
-| **처음인데 무엇을 보고해야 하나요?** | [초보자 안내: PC 확인 및 결과 공유](docs/START-HERE.ko.md) |
-| **내 PC의 캡처 파일이 이미 있어요** | [기존 파일 오프라인 검사](docs/START-HERE.ko.md#2--기존-파일-검사) |
+| **처음인데 무엇을 보고해야 하나요?** | [Start-Capture 실행 및 보고서 공유](docs/CAPTURE-SETUP.ko.md) |
+| **내 PC의 캡처 파일이 이미 있어요** | [같은 실행기에서 저장 폴더 열기](docs/CAPTURE-SETUP.ko.md#시작) |
 | **동작한 구성들을 알고 싶어요** | [보고된 구성과 제한](docs/CONFIRMED-SETUPS.ko.md) |
 | **언락을 조사할 준비가 됐어요** | [정확한 구성과 부팅 경로부터 확인](docs/COMPATIBILITY.ko.md) |
 
 ### 빠른 확인 · 재부팅 없음
 
-**Code → Download ZIP**으로 다운로드하고 압축을 푼 다음 프로젝트 폴더에서 PowerShell을 엽니다. Python 3.10 이상이 설치되어 있으면 실행합니다.
-
-```powershell
-python -I .\tools\collect_compatibility.py
-```
-
-하드웨어/드라이버 정보를 출력하며 언락, 설정 변경, 업로드는 하지 않습니다. **`not-assessed`와 `can_unlock: false`는 정상입니다.** 개인 정보를 제거한 텍스트를 검토한 뒤 [호환성 보고](https://github.com/impacifist/Windows-GPU-UNLOCK/issues/new?template=compatibility.yml)에 붙여 넣습니다. 펌웨어나 원시 덤프는 첨부하지 마세요.
+**Code → Download ZIP**으로 소스 전체를 압축 해제하고
+**`Start-Capture.cmd`**를 더블 클릭합니다. 기존 캡처가 있으면 폴더를
+입력하고 없으면 Enter로 Windows 정보를 수집합니다. 같은 실행기가
+관련 오프라인 검사를 선택하고 이전 결과를 재개합니다.
+알 수 없는 보드, 혼합·중복 GPU도 진단 경로를 유지합니다.
+하나의 `report.json`을 검토한 뒤 이슈에 공유하세요.
+`hardware_tested: false`와 `write_eligible: false`는 정상입니다.
 
 > [!TIP]
-> Python이나 터미널이 익숙하지 않나요? [단계별 안내](docs/START-HERE.ko.md)에서 시작 방법, 결과 의미, 공유 항목을 설명합니다. 하드웨어 정보를 직접 입력해도 됩니다. 제보에 EFI 테스트는 필요하지 않습니다.
+> Windows 관찰에는 Python·컴파일러가 필요하지 않습니다. 저장 파일 파싱에만
+> Python이 필요합니다. 선택적인 graph-only USB 관찰 전에는
+> [하나의 진단 흐름 안내](docs/CAPTURE-SETUP.ko.md)를 읽으세요.
+> 제보에 EFI 테스트는 필요하지 않으며 재실행이 자동 추가 시도를 요청하지 않습니다.
 
 ## 커뮤니티
 

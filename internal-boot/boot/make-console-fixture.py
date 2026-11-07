@@ -72,9 +72,9 @@ roles = {
 }
 if single:
     child_records = [e for e in edges if e[0] == roles['RtxPci'] and str(e[3]) == '09576e91-6d3f-11d2-8e39-00a0c969723b' and e[4] == 8 and e[2] != roles['Rtx']]
-    # Only non-aggregate firmware without an EDID driver admits up to three
-    # siblings. Preserve the legacy exact-two-child option when not disabled.
-    child_limit = 3 if no_edid_driver else 1
+    # Non-aggregate runtime capacity is four total children. Preserve the
+    # aggregate bound and legacy exact-two-child option when not disabled.
+    child_limit = 1 if aggregate else 3
     if len(child_records) > child_limit or len({record[2] for record in child_records}) != len(child_records) or \
             ('--no-edid-child' not in sys.argv[2:] and len(child_records) != 1):
         raise ValueError('Unexpected additional RTX display child count')

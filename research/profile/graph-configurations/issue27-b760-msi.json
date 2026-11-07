@@ -1,0 +1,13 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue27-b760-msi",
+  "Scope": "graph-only",
+  "Board": "PRO B760M-E DDR4 (MS-7D48)",
+  "ManufacturerPrefix": "Micro-Star",
+  "ManufacturerMatch": "prefix",
+  "Bios": "B.I0",
+  "CpuToken": "i5-13490F",
+  "Adapters": [
+    { "Vendor": "10DE", "Device": "2786", "Subsystem": "20007377" }
+  ]
+}

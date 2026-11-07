@@ -1,0 +1,15 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue196",
+  "Scope": "graph-only",
+  "Board": "PRO X870-P WIFI (MS-7E47)",
+  "ManufacturerPrefix": "Micro-Star",
+  "ManufacturerMatch": "prefix",
+  "Bios": "1.A76",
+  "CpuToken": "9800X3D",
+  "Adapters": [
+    { "Vendor": "10DE", "Device": "2208", "Subsystem": "40811458" },
+    { "Vendor": "10DE", "Device": "24B0", "Subsystem": "14AD10DE" },
+    { "Vendor": "1002", "Device": "13C0", "Subsystem": "7E471462" }
+  ]
+}

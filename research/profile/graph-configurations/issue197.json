@@ -1,0 +1,14 @@
+{
+  "SchemaVersion": 1,
+  "Id": "issue197",
+  "Scope": "graph-only",
+  "Board": "MAG B650 TOMAHAWK WIFI (MS-7D75)",
+  "ManufacturerPrefix": "Micro-Star",
+  "ManufacturerMatch": "prefix",
+  "Bios": "1.R3",
+  "CpuToken": "7800X3D",
+  "Adapters": [
+    { "Vendor": "10DE", "Device": "2504", "Subsystem": "397D1462" },
+    { "Vendor": "1002", "Device": "164E", "Subsystem": "7D751462" }
+  ]
+}
