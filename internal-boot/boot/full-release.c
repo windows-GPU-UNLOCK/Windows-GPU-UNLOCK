@@ -319,6 +319,9 @@ static EFI_STATUS FullConsumers(const GRAPH *g) {
     else return EFI_ACCESS_DENIED;
   }
   if(owners!=1 || !children || Full.NvAgent==Full.Image)return EFI_ACCESS_DENIED;
+#if defined(GU_PROFILE_LOCAL) && GU_LOCAL_CHILD_COUNT > 0
+  if(children!=GU_LOCAL_CHILD_COUNT)return EFI_ACCESS_DENIED;
+#endif
   Full.ChildCount=children;
   UINTN consoleChild=children;
   for(UINTN c=0;c<children;c++) {

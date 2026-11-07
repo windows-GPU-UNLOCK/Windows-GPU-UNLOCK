@@ -73,11 +73,23 @@ COLD = [0x0, 0x823804, 0x118128, 0x118234, 0x110100, 0x1fa828, 0x82381c, 0x82382
 # Test expected-image buffer in test_efi_transaction.c.
 FWSEC_IMAGE_MAX = 0x10000
 IMAGE_MAX = 4 * 1024 * 1024  # Same loaded-image dump cap as probe.c.
-MAX_NO_EDID_CHILDREN = 4  # Contract-tested against full-release.c's runtime capacity.
+MAX_DISPLAY_CHILDREN = 4  # Contract-tested against non-aggregate full-release.c.
 
 
 class Refused(ValueError):
     pass
+
+
+class TopologyRefused(Refused):
+    """Fixed, numeric diagnosis; never raw graph text/addresses or admission."""
+    def __init__(self, message, reason, **counts):
+        super().__init__(message)
+        if reason not in ('active_edid_without_target_owner', 'unsupported_display_children'):
+            raise Refused('Unknown topology diagnostic')
+        if any(key not in ('active_edid_handles', 'display_children', 'allowed_children') or
+               type(value) is not int or not 0 <= value <= 4096 for key, value in counts.items()):
+            raise Refused('Invalid topology diagnostic counts')
+        self.topology_detail = {'reason': reason, **counts}
 
 
 def fail(message):
@@ -549,8 +561,17 @@ def analyze(diag, image_dir, envelope):
     # Aggregate uses the same table/interfaces/ownership contract as the runtime;
     # NVRAM ConOut is not used by prepare/release and is not guessed here.
     if topology is None:
-        conout = re.search(r'^variable name=ConOut .*\n((?:(?!variable name=).*\n)*)', text, re.M)
-        rows = re.findall(r'^path-node raw=([0-9a-f]+)$', conout[1], re.M) if conout else []
+        conouts = list(re.finditer(r'^variable name=ConOut .*\n((?:(?!variable name=).*\n)*)', text, re.M))
+        if not conouts:
+            fail('ConOut variable record is missing; the non-aggregate RTX output path is unverified')
+        if len(conouts) != 1:
+            fail('ConOut variable records are ambiguous; the non-aggregate RTX output path is unverified')
+        conout = conouts[0]
+        rows = re.findall(r'^path-node raw=([0-9a-f]+)$', conout[1], re.M)
+        if not rows:
+            if re.match(r'variable name=ConOut initial-status=0x0*800000000000000e\b', conout[0]):
+                fail('ConOut variable is unavailable (EFI_NOT_FOUND); no non-aggregate RTX output path was captured')
+            fail('ConOut has no captured path; the non-aggregate RTX output path is unverified')
         if b''.join(bytes.fromhex(r) for r in rows) != rtx_path:
             fail('ConOut is not exactly the RTX GOP path; multi-device consoles are not generated')
 
@@ -565,14 +586,18 @@ def analyze(diag, image_dir, envelope):
         live_edid = [h for h, b in blocks.items()
                      if any(p == EDID_DISCOVERED and attrs not in (1, 2, 4) for p, a, c, attrs, n in b['edges'])]
         if live_edid:
-            fail(f'no BY_DRIVER EDID owner on the RTX GOP, yet {len(live_edid)} handle(s) have an active EdidDiscovered opener')
+            raise TopologyRefused(
+                f'no BY_DRIVER EDID owner on the RTX GOP, yet {len(live_edid)} handle(s) have an active EdidDiscovered opener',
+                'active_edid_without_target_owner', active_edid_handles=len(live_edid))
     nv_agent = sole_driver(blocks, rtx_pci, PCI_IO)
     child_edges = [(a, c, n) for p, a, c, attrs, n in blocks[rtx_pci]['edges'] if p == PATH and attrs == BY_CHILD_CONTROLLER]
     children = [c for a, c, n in child_edges]
-    child_limit = MAX_NO_EDID_CHILDREN if no_edid_driver and topology is None else 2
+    child_limit = MAX_DISPLAY_CHILDREN if topology is None else 2
     if not 1 <= len(children) <= child_limit or len(set(children)) != len(children) or \
             any(a != nv_agent or n != 1 for a, c, n in child_edges):
-        fail(f'console topology requires 1..{child_limit} unique NVIDIA-owned display children')
+        raise TopologyRefused(
+            f'console topology requires 1..{child_limit} unique NVIDIA-owned display children',
+            'unsupported_display_children', display_children=len(children), allowed_children=child_limit)
     if rtx not in children or any(c not in blocks for c in children):
         fail('console display children must include the RTX GOP and exist in the graph')
     if no_edid_driver and any(EDID_DISCOVERED not in blocks[c]['protocols'] for c in children):

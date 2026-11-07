@@ -153,13 +153,14 @@ def add_open(text, handle, protocol, row):
 
 
 class LocalTopologyTests(unittest.TestCase):
-    def test_no_edid_child_capacity_matches_the_runtime(self):
+    def test_nonaggregate_child_capacity_matches_the_runtime(self):
         runtime=(HERE.parents[1]/'internal-boot/boot/full-release.c').read_text()
         values=re.findall(r'^#define GU_HEADLESS_MAX_DISPLAY_CHILDREN ([0-9]+)$',runtime,re.M)
-        self.assertEqual(values,[str(mp.MAX_NO_EDID_CHILDREN)])
+        self.assertEqual(values,[str(mp.MAX_DISPLAY_CHILDREN)])
         for children in (3,4):
-            self.assertEqual(analyze(synthetic_capture(children=children))['child_count'],children)
-            for aggregate,no_edid in ((False,False),(True,False),(True,True)):
+            for no_edid in (False,True):
+                self.assertEqual(analyze(synthetic_capture(children=children,no_edid=no_edid))['child_count'],children)
+            for aggregate,no_edid in ((True,False),(True,True)):
                 with self.subTest(children=children,aggregate=aggregate,no_edid=no_edid),self.assertRaises(mp.Refused):
                     analyze(synthetic_capture(children=children,aggregate=aggregate,no_edid=no_edid))
         for children in (0,5):

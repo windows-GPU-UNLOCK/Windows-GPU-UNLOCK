@@ -1,5 +1,6 @@
 """Aggregate discovery and metadata are synthetic evidence, never hardware approval."""
 import importlib.util
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -19,6 +20,35 @@ def inspect(text, mutate=None):
 
 
 class AggregateTopologyTests(unittest.TestCase):
+    def test_missing_conout_and_not_found_are_distinct_from_mismatch(self):
+        good=data.synthetic_capture(no_edid=True)
+        pattern=r'^variable name=ConOut .*\n(?:(?!variable name=).*\n)*'
+        missing,hits=re.subn(pattern,'',good,flags=re.M)
+        self.assertEqual(hits,1)
+        with self.assertRaisesRegex(mp.Refused,'ConOut variable record is missing'):data.analyze(missing)
+        unavailable=re.sub(pattern,'variable name=ConOut initial-status=0x800000000000000e bytes=0x0\n',good,flags=re.M)
+        with self.assertRaisesRegex(mp.Refused,'ConOut variable is unavailable'):data.analyze(unavailable)
+        empty=unavailable.replace('initial-status=0x800000000000000e bytes=0x0','initial-status=0x0 bytes=0x0',1)
+        with self.assertRaisesRegex(mp.Refused,'ConOut has no captured path'):data.analyze(empty)
+        block=re.search(pattern,good,re.M)[0]
+        duplicate=good.replace('variable name=ConOutDev',block+'variable name=ConOutDev',1)
+        with self.assertRaisesRegex(mp.Refused,'ConOut variable records are ambiguous'):data.analyze(duplicate)
+        mismatch=good.replace('path-node raw=0203080020000000','path-node raw=0203080021000000',1)
+        # Any changed ConOut route must remain refused, not synthesized.
+        if mismatch==good:
+            mismatch=good.replace('path-node raw=010106000103','path-node raw=010106000104',1)
+        with self.assertRaisesRegex(mp.Refused,'ConOut is not exactly'):data.analyze(mismatch)
+
+    def test_aggregate_missing_nvram_conout_uses_full_live_graph(self):
+        text=data.synthetic_capture(aggregate=True,no_edid=False,children=1)
+        missing,hits=re.subn(r'^variable name=ConOut .*\n(?:(?!variable name=).*\n)*','',text,flags=re.M)
+        self.assertEqual(hits,1)
+        result=data.analyze(missing)
+        self.assertTrue(result['aggregate'])
+        damaged=missing.replace('04061400627e9855','04061400637e9855')
+        self.assertNotEqual(damaged,missing)
+        with self.assertRaises(mp.Refused):data.analyze(damaged)
+
     def test_aggregate_fixture_maps_combo_and_installed_protocols(self):
         for children in (1,2):
             with tempfile.TemporaryDirectory() as folder:

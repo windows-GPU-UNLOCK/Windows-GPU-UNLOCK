@@ -1,5 +1,6 @@
 """Exact capture paths and pinned ancestry; synthetic inputs only."""
 import importlib.util
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -21,6 +22,28 @@ data=load('gpu_path_test_captures','test_local_topology.py')
 
 
 class GpuPathTests(unittest.TestCase):
+    def test_issue75_aggregate_uid_and_reported_selector_variation(self):
+        # Synthetic ownership/image data with reported selector values; not the
+        # contributor's captures and never machine admission or benignity proof.
+        results=[]
+        for ss0,ss1 in ((0x40774110,3),(0x42774110,1)):
+            text=data.synthetic_capture(aggregate=True,no_edid=False,board=0x220410de,
+                                        chip=0xb72000a1,memory=0x6000,bus=1)
+            text=text.replace('02010c00d041030a00000000','02010c00d041030a01000000')
+            for offset,value in ((0x82381c,ss0),(0x823820,ss1)):
+                text,hits=re.subn(rf'(mmio off=0x{offset:08x} status=0x0000000000000000 value=)0x[0-9a-f]+',
+                                  lambda m:m[1]+f'0x{value:08x}',text)
+                self.assertEqual(hits,1)
+            result=data.analyze(text)
+            self.assertTrue(result['aggregate'])
+            self.assertEqual(contract.decode_gpu_display_path(bytes.fromhex(result['child_paths'][0]))['root_uid'],1)
+            results.append(result)
+        self.assertEqual(results[0]['defines'],results[1]['defines'])
+        self.assertNotEqual(results[0]['cold_line'],results[1]['cold_line'])
+        changed=bytes.fromhex(results[0]['child_paths'][0])
+        other=bytearray(changed);other[8]=0
+        self.assertFalse(contract.same_gpu_display_route(changed,bytes(other)))
+
     def test_capture_path_is_exact_while_read_bound_may_extend(self):
         for nodes in (1,2,16):
             for hid,uid in ((3,0),(8,0xffffffff)):

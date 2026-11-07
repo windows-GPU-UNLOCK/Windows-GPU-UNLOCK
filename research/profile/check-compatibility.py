@@ -28,7 +28,7 @@ parent = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(parent)
 DIAG_LIMIT = 8 * 1024 * 1024
 TOTAL_LIMIT = 64 * 1024 * 1024
-CHECKER_VERSION = 1
+CHECKER_VERSION = 2
 
 # Messages are deliberately allowlisted. Parser exceptions can contain capture
 # content, addresses and private filenames; none are echoed into a report.
@@ -48,6 +48,8 @@ MESSAGES = {
     'input_limit': ('Input exceeds the file-size, file-count or total-read limit.', '입력이 파일 크기·파일 수·전체 읽기 제한을 초과했습니다.'),
     'input_unreadable': ('The folder or a required regular file could not be read.', '폴더나 필요한 일반 파일을 읽을 수 없습니다.'),
     'invalid_graph': ('Incomplete, malformed or ambiguous diagnostic ownership graph.', '진단 소유권 그래프가 불완전하거나 형식이 잘못됐거나 모호합니다.'),
+    'probe_envelope_refused': ('Capture records a probe-envelope refusal before deep reads. Preserve the existing log for source review; do not bypass the guard or repeat the boot.', '심층 읽기 전 진단 허용 범위 거부가 기록되어 있습니다. 기존 로그를 보존하고 소스를 검토하세요. 검사를 우회하거나 다시 부팅하지 마세요.'),
+    'multiple_capture_failures': ('Capture records both a probe-envelope refusal and unavailable GOP information. Neither failure is resolved; review the original build and log without repeating the boot.', '진단 허용 범위 거부와 GOP 정보 누락이 함께 기록되어 있습니다. 두 오류 모두 해결되지 않았습니다. 다시 부팅하지 말고 원래 빌드와 로그를 검토하세요.'),
     'gpu_scope': ('The captured NVIDIA display configuration is outside the reviewed automatic profile envelope; this does not mean all project routes are unsupported.', '캡처된 NVIDIA 디스플레이 구성이 검증된 자동 프로필 범위 밖입니다. 프로젝트의 모든 경로에서 미지원이라는 뜻은 아닙니다.'),
     'topology_scope': ('The console, PCI path or driver ownership layout is not accepted by the current generator.', '콘솔·PCI 경로·드라이버 소유 구조가 현재 생성기의 허용 범위와 다릅니다.'),
     'driver_scope': ('The firmware driver identity or code is outside the reviewed local-profile envelope.', '펌웨어 드라이버 종류나 코드가 검증된 로컬 프로필 범위 밖입니다.'),
@@ -261,6 +263,7 @@ def check(folder, envelope, *, inputs=None):
         report['checks'].append(entry)
         if priority[state] > priority[report['status']]:
             report['status'] = state
+        return entry
 
     try:
         validate_envelope(envelope)
@@ -289,6 +292,26 @@ def check(folder, envelope, *, inputs=None):
         for name in diags:
             diag = inputs.read(name, DIAG_LIMIT)
             text = diag.data.decode('utf-8-sig').replace('\r\n', '\n')
+            reasons = re.findall(r'^incomplete reason=.*$', text, re.M)
+            if (re.findall(r'^capture-complete=.*$', text, re.M) == ['capture-complete=0'] and
+                re.findall(r'^diagnostic-result status=.*$', text, re.M) ==
+                    ['diagnostic-result status=0x8000000000000006'] and
+                sorted(reasons) == sorted([
+                    'incomplete reason=probe-unreviewed-envelope status=0x8000000000000003',
+                    'incomplete reason=gop-info status=0x8000000000000006'])):
+                report['observations'].append({'capture': name, 'available': False})
+                add('invalid_data', 'multiple_capture_failures', name)
+                continue
+            # This explains a recorded refusal only. It never admits incomplete
+            # input to graph/profile analysis or grants hardware eligibility.
+            if (re.findall(r'^capture-complete=.*$', text, re.M) == ['capture-complete=0'] and
+                re.findall(r'^diagnostic-result status=.*$', text, re.M) ==
+                    ['diagnostic-result status=0x8000000000000006'] and
+                re.findall(r'^incomplete reason=.*$', text, re.M) ==
+                    ['incomplete reason=probe-unreviewed-envelope status=0x8000000000000003']):
+                report['observations'].append({'capture': name, 'available': False})
+                add('invalid_data', 'probe_envelope_refused', name)
+                continue
             try:
                 blocks = mp.parse_handles(text)
             except mp.Refused:
@@ -305,7 +328,9 @@ def check(folder, envelope, *, inputs=None):
                 result = mp.analyze(diag, None, envelope)
             except mp.Refused as error:
                 state, code = observation_reason(error)
-                add(state, code, name)
+                entry = add(state, code, name)
+                if isinstance(error, mp.TopologyRefused):
+                    entry['topology_detail'] = error.topology_detail
                 continue
             observations.append(result)
             add('candidate', 'observations_pass', name)

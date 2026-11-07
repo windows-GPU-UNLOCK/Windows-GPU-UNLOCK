@@ -110,6 +110,10 @@ int main(int argc,char **argv) {
     if(scenario==30)Check((UINTN)Calls==3+children && !Full.Released,"NV partial child cleanup error cannot be promoted to release success");
   }
   Check(RunFull(32)!=EFI_SUCCESS && Calls==3 && !EnableCalls && !ClaimCalls,"last cold-read GOP info mutation blocks next detach");
+  for(int scenario=39;scenario<=42;scenario++) {
+    Check(RunFull(scenario)!=EFI_SUCCESS && Calls==2 && !EnableCalls && !ClaimCalls,
+      "wrong/duplicate/controller/count EDID ownership on the last child blocks all EDID/NVIDIA stops and decode");
+  }
   Check(RunFull(0)==EFI_SUCCESS,"new release session");
   Phase=3;Check(GuVerifyReleased(LastTable,FALSE)!=EFI_SUCCESS,"reappeared physical GOP blocks unlock/Windows");Phase=4;
   Check(RunFull(0)==EFI_SUCCESS,"new session for late input change");
