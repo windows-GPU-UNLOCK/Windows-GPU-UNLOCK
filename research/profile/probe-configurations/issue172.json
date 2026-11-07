@@ -1,0 +1,17 @@
+{
+  "SchemaVersion": 2,
+  "Id": "issue172",
+  "Scope": "pinned-read-only-resource-capture",
+  "Board": "X570 AORUS ELITE",
+  "ManufacturerPrefix": "Gigabyte",
+  "Bios": "F41c",
+  "CpuToken": "5800X",
+  "TargetBus": 8,
+  "TargetDevice": "220410de",
+  "TargetSubsystem": "147d10de",
+  "OtherPciVendor": null,
+  "NonPci": [],
+  "ManufacturerMatch": "prefix",
+  "OtherPciDevice": null,
+  "OtherPciSubsystem": null
+}

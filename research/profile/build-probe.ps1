@@ -4,8 +4,12 @@
 # Windows. It compiles only as a diagnostic build: no unlock code, GPU writes, driver release,
 # DMA or firmware variable writes. Builds files only.
 param([Parameter(Mandatory)][guid]$WindowsEspGuid,[string]$Clang='clang',[string]$LldLink='lld-link',[string]$Python='python',
-      [ValidateRange(1,255)][int]$TargetBus=1)
+      [ValidateRange(1,255)][int]$TargetBus=1,
+      [ValidatePattern('^[0-9a-fA-F]{8}$')][string]$ExpectedDevice,
+      [ValidatePattern('^[0-9a-fA-F]{8}$')][string]$ExpectedSubsystem)
 $ErrorActionPreference='Stop'
+if(([bool]$ExpectedDevice) -ne ([bool]$ExpectedSubsystem)){throw 'Supply both ExpectedDevice and ExpectedSubsystem, or neither.'}
+if($ExpectedDevice -and !$PSBoundParameters.ContainsKey('TargetBus')){throw 'Pinned identity requires an explicit TargetBus.'}
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $boot=Join-Path $repo 'internal-boot/boot'
 . (Join-Path $PSScriptRoot 'probe-manifest.ps1')
@@ -33,6 +37,11 @@ try {
  if($PSBoundParameters.ContainsKey('TargetBus')){
   $defines+=('-DGU_PROBE_BUS=0x{0:x}U' -f $TargetBus);$busMode='explicit'
  } else {$defines+='-DGU_PROBE_AUTO_BUS'}
+ if($ExpectedDevice){
+  $ExpectedDevice=$ExpectedDevice.ToLowerInvariant();$ExpectedSubsystem=$ExpectedSubsystem.ToLowerInvariant()
+  $defines+=('-DGU_PROBE_EXPECTED_ID=0x'+$ExpectedDevice+'U')
+  $defines+=('-DGU_PROBE_EXPECTED_SUBSYSTEM=0x'+$ExpectedSubsystem+'U')
+ }
  $objects=@()
  foreach($source in $sources) {
   $obj="$out/"+[IO.Path]::GetFileNameWithoutExtension($source)+'.obj'
@@ -46,6 +55,8 @@ try {
  if($LASTEXITCODE -ne 0){throw 'Probe PE verification failed'}
  [ordered]@{Mode='generic-read-only-probe-then-windows-usb';CanUnlock=$false;CanDetach=$false;WritesFirmwareVariables=$false;HardwareTested=$false;Defines=$defines
   ProbeBusMode=$busMode;TargetBus=$(if($busMode -eq 'explicit'){$TargetBus}else{$null})
+  ExpectedDevice=$(if($ExpectedDevice){$ExpectedDevice}else{$null});ExpectedSubsystem=$(if($ExpectedSubsystem){$ExpectedSubsystem}else{$null})
+  ExpectedSegment=$(if($ExpectedDevice){0}else{$null})
   EfiSha256=(Get-FileHash -LiteralPath "$out/BOOTX64.EFI").Hash.ToLowerInvariant();BuiltUtc=[DateTime]::UtcNow.ToString('o')
   Sources=$sourceRows
  } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath "$out/manifest.json" -Encoding utf8
