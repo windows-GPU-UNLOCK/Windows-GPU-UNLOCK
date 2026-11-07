@@ -15,7 +15,10 @@ function Order([string]$text){
  if($ids -notcontains '{bootmgr}' -or @($ids | Select-Object -Unique).Count -ne $ids.Count){throw 'Invalid firmware order'};return $ids
 }
 function SetOrder([string[]]$ids){[void](Bcd (@('/set','{fwbootmgr}','displayorder')+$ids))}
-function Ids([string]$text){return @([regex]::Matches($text,'(?mi)^identifier\s+(\{[0-9a-f-]{36}\})') | ForEach-Object {$_.Groups[1].Value})}
+function Ids([string]$text){
+ $zh=[string]::Join('',@([char]0x6807,[char]0x8bc6,[char]0x7b26))
+ return @([regex]::Matches($text,'(?mi)^(?:identifier|'+$zh+')\s+(\{[0-9a-f-]{36}\})') | ForEach-Object {$_.Groups[1].Value})
+}
 function ExistsBcd([string]$id){$null=& bcdedit /enum $id;return $LASTEXITCODE -eq 0}
 function ReadHiber {
  $k=Get-Item -LiteralPath $power;$exists=$k.GetValueNames() -contains 'HiberbootEnabled'
