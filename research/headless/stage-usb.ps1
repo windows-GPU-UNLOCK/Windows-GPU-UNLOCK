@@ -6,6 +6,17 @@ $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $part=Get-Partition -DriveLetter $Drive;$disk=Get-Disk -Number $part.DiskNumber;$vol=Get-Volume -DriveLetter $Drive
 if($disk.BusType -ne 'USB' -or $vol.FileSystem -ne 'FAT32' -or $part.IsSystem -or $disk.IsBoot){throw "$($Drive): is not a FAT32 USB data stick"}
 $usb="$($Drive.ToUpperInvariant()):"
+# With protection active on C:, the changed boot chain (USB loader, Secure Boot off) makes
+# Windows Boot Manager ask for the BitLocker recovery key while the display is still dark.
+# Without input it powers off after about a minute, which looks like a failed handoff (#125).
+# This tool never changes encryption settings; refuse before the first write instead.
+function Test-BitLockerActive {
+ try{return [int](Get-BitLockerVolume -MountPoint C: -ErrorAction Stop).ProtectionStatus -ne 0}catch{}
+ # Not elevated: shell property 1 on, 3 encrypting, 6 on/locked; 2 off, 4 decrypting, 5 suspended.
+ $state=(New-Object -ComObject Shell.Application).NameSpace('C:').Self.ExtendedProperty('System.Volume.BitLockerProtection')
+ return @(1,3,6) -contains [int]$state
+}
+if(Test-BitLockerActive){throw 'BitLocker protection on C: is active. Keep the recovery key at hand, then suspend it in an elevated PowerShell: Suspend-BitLocker -MountPoint C: -RebootCount 0 (see docs/HEADLESS-USB.en.md)'}
 function Sha([string]$p){(Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant()}
 function Put([string]$src,[string]$rel,[string]$hash) {
  if((Sha $src) -ne $hash){throw "Source does not match its manifest: $src"}

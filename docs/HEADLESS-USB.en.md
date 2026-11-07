@@ -76,7 +76,40 @@ These hashes are local stale-input guards, not signatures for an untrusted host.
 one was written by `build-usb.ps1`; it refuses to overwrite an internal `Configure.ps1`
 setup. `stage-usb.ps1` refuses non-USB or non-FAT32 volumes, keeps any previous
 `EFI\BOOT\BOOTX64.EFI` in `RTX3090-UNLOCK\backup\`, and verifies every copied file
-against the package manifest and `unlock/assets.json`.
+against the package manifest and `unlock/assets.json`. It also refuses while
+BitLocker protection on C: is active (see below).
+
+## BitLocker
+
+Booting the unsigned stick with Secure Boot disabled changes the measured boot
+chain, so the TPM no longer releases the BitLocker key. Windows Boot Manager then
+asks for the recovery key, but after a headless unlock the display is still dark
+and the prompt is invisible. With no input, Windows deliberately powers off after
+about a minute ([Microsoft](https://learn.microsoft.com/en-us/troubleshoot/windows-client/windows-security/bitlocker-recovery-auto-shutdown-in-uefi-mode)).
+The log on the stick still ends with `FINAL status=0 ... clean=1` and the last
+stage `windows-close-files-next-then-final-verify-and-StartImage`, so this looks
+like a failed handoff ([#125](https://github.com/impacifist/Windows-GPU-UNLOCK/issues/125)).
+
+Before staging and before every unlock boot, make sure the recovery key is at hand
+and suspend protection in an elevated PowerShell. `-RebootCount 0` keeps it
+suspended across restarts until it is resumed:
+
+```powershell
+manage-bde -status C:
+Suspend-BitLocker -MountPoint "C:" -RebootCount 0
+```
+
+While protection is suspended, the volume key is stored in the clear on the disk;
+anyone with physical access to the drive can read it. Resume protection from a
+normal Windows boot when you no longer use the stick:
+
+```powershell
+Resume-BitLocker -MountPoint "C:"
+```
+
+The tools never change encryption settings. `stage-usb.ps1` only checks the state.
+Protection resumed or a suspension with a reboot count that has run out after
+staging is not detected at boot time.
 
 Stick layout:
 
@@ -100,7 +133,9 @@ exact profile and use a full shutdown for a controlled cold-boot experiment.
 
 Only after one supervised success should the stick become a default boot device.
 If a run stops after the display went black, power off and boot Windows Boot
-Manager directly. Never retry in the same power session.
+Manager directly. Never retry in the same power session. If the PC powers off
+on its own about a minute after the unlock and the log ends cleanly, check
+BitLocker first (see above).
 
 Host tests: `internal-boot\boot\test-cold-precheck.ps1 -HardwareProfile <profile>`
 (no fixtures) and the headless app test with `-DGU_USB_MEDIA`, which also checks that
