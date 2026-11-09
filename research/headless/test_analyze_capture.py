@@ -1,7 +1,7 @@
 """Synthetic format fixtures; no firmware, GPU or headless boot evidence."""
 import unittest
 
-from analyze_capture import analyze, MARKER, GOP, TEXT, INPUT
+from analyze_capture import analyze, device_path, MARKER, GOP, TEXT, INPUT
 
 
 def fixture(amd=False):
@@ -30,6 +30,83 @@ class CaptureTests(unittest.TestCase):
         for flag in ['hardware_access', 'authorizes_driver_detach', 'authorizes_unlock', 'headless_handoff_verified']:
             self.assertFalse(report[flag])
         self.assertNotIn('0x1', str(report))
+
+    def test_malformed_declared_path_rows_cannot_disappear(self):
+        bad_rows = (b'path-node raw=01010600000g', b'path-node raw=',
+                    b'path-node raw=0101060000000', b'path-node raw=010106000000 trailing',
+                    b'path-node raw=7FFF0400', b'path-node', b'path-node raw =010106000000')
+        # Insert at first, middle and final positions without removing any valid
+        # nodes: filtering malformed rows used to leave a positive topology.
+        for handle in (b'0x2', b'0x3'):
+            prefix, block = fixture().split(b'handle id=' + handle + b'\n', 1)
+            lines = block.splitlines(keepends=True)
+            indices = [i for i, line in enumerate(lines) if line.startswith(b'path-node')]
+            if handle == b'0x2':
+                indices = indices[:4]
+            for at in (indices[0], indices[1], indices[-1] + 1):
+                for row in bad_rows:
+                    with self.subTest(handle=handle, at=at, row=row):
+                        corrupt = lines[:at] + [row + b'\n'] + lines[at:]
+                        with self.assertRaisesRegex(ValueError, 'Malformed device path node'):
+                            analyze(prefix + b'handle id=' + handle + b'\n' + b''.join(corrupt))
+
+    def test_non_newline_controls_cannot_hide_record_suffixes(self):
+        for separator in ('\v', '\f', '\r', '\x1c', '\x1d', '\x1e', '\x85', '\u2028', '\u2029'):
+            for row in (b'path-node raw=7fff0400', b'gop framebuffer=0x1000 bytes=0x4000'):
+                for newline in (b'\n', b'\r\n'):
+                    with self.subTest(separator=repr(separator), row=row, newline=newline):
+                        raw = fixture().replace(b'\n', newline)
+                        raw = raw.replace(row + newline, row + separator.encode() + b'trailing' + newline)
+                        with self.assertRaises(ValueError):
+                            analyze(raw)
+
+    def test_pathless_virtual_console_is_not_a_malformed_path(self):
+        needle = ('handle id=0x1\n').encode()
+        virtual = ('protocol guid=' + GOP + '\ngop framebuffer=0x0 bytes=0x0\n').encode()
+        raw = fixture().replace(needle, needle + virtual)
+        report = analyze(raw)
+        self.assertEqual(report['virtual_console_gop_count'], 1)
+        self.assertTrue(report['single_rtx_display_topology_observed'])
+        with self.assertRaisesRegex(ValueError, 'Malformed device path node'):
+            analyze(raw.replace(virtual, virtual + b'path-node raw=\n'))
+
+    def test_windows_line_endings_preserve_valid_topology(self):
+        raw = fixture().replace(b'\n', b'\r\n')
+        report = analyze(raw)
+        self.assertTrue(report['single_rtx_display_topology_observed'])
+        self.assertEqual(report['physical_gop_count'], 1)
+        with self.assertRaisesRegex(ValueError, 'Malformed device path node'):
+            analyze(raw.replace(b'path-node raw=7fff0400', b'path-node raw=7fff0400g'))
+
+    def test_device_path_grammar_is_preserved(self):
+        self.assertIsNone(device_path('path absent\n'))
+        self.assertEqual(device_path('path-node raw=7fff0400\n'), bytes.fromhex('7fff0400'))
+        for nodes in ('010106000000', '7f010400\n7fff0400',
+                      '7fff0400\n010106000000', '010107000000\n7fff0400'):
+            with self.subTest(nodes=nodes), self.assertRaises(ValueError):
+                device_path(''.join('path-node raw=' + node + '\n' for node in nodes.splitlines()))
+
+    def test_duplicate_gop_geometry_rejected_in_either_order(self):
+        mode = b'gop framebuffer=0x1000 bytes=0x4000'
+        for extra in (mode, b'gop framebuffer=0x0 bytes=0x0',
+                      mode + b' mode=0x1 max-mode=0x2'):
+            for rows in (mode + b'\n' + extra, extra + b'\n' + mode):
+                with self.subTest(rows=rows), self.assertRaises(ValueError):
+                    analyze(fixture().replace(mode, rows))
+
+    def test_gop_geometry_requires_complete_known_syntax(self):
+        mode = b'gop framebuffer=0x1000 bytes=0x4000'
+        for suffix in (b'truncated', b' mode=0x1', b' mode=0x1 max-mode=0x2 extra'):
+            with self.subTest(suffix=suffix), self.assertRaises(ValueError):
+                analyze(fixture().replace(mode, mode + suffix))
+        for replacement in (b'gop framebuffer=', b'gop framebuffer=0x1000 bytes='):
+            with self.subTest(replacement=replacement), self.assertRaises(ValueError):
+                analyze(fixture().replace(mode, replacement))
+        report = analyze(fixture().replace(mode, mode + b' mode=0x1 max-mode=0x2'))
+        self.assertTrue(report['single_rtx_display_topology_observed'])
+        for flag in ('hardware_access', 'authorizes_driver_detach', 'authorizes_unlock',
+                     'headless_handoff_verified', 'file_close_verified'):
+            self.assertFalse(report[flag])
 
     def test_two_display_baseline_is_not_single_gpu_evidence(self):
         r = analyze(fixture(amd=True))
