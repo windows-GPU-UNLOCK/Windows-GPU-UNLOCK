@@ -55,6 +55,13 @@ Gigabyte GA106 RTX 3060 profile. Its two-display route is non-aggregate and diff
 from B660-PLUS. It is also USB-only. See [its evidence](../evidence/h610m-3060-usb/README.md)
 and [compatibility requirements](COMPATIBILITY.en.md).
 
+`-HardwareProfile b550-3060` selects the exact Gigabyte B550 AORUS ELITE V2 BIOS F13 /
+reference GA104 RTX 3060 12GB profile (`10de:2487` / `10de:2487`, VBIOS 94.04.71.00.a5).
+It requires CSM disabled, one monitor on the RTX and the card on bus 06; its BIOS F13
+template carries nvgop `0x6000a`. It is USB-only. Its one recorded boot used the
+pre-rebase files listed in [its evidence](../evidence/b550-3060-usb/README.md); a current
+build has different, never-booted hashes.
+
 For read-only porting captures, `build-observe-usb.ps1` and `stage-observe-usb.ps1`
 produce a separate diagnostic package. `-DumpProm` opts into saving the PROM.
 Staging checks typed capabilities, source/config hashes and the EFI hash before
