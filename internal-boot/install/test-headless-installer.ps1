@@ -16,7 +16,7 @@ $global:HeadlessConfig=[pscustomobject]@{UnlockDriveLetter='U';UnlockPartitionGu
 $childRelative='unlock/build/experimental/entryLatchedSs1Full/internal/automatic/headless-research/RTX3090-EXPERIMENTAL-entryLatchedSs1Full-INTERNAL-AUTO-HEADLESS-RESEARCH.EFI'
 $wrapper=Join-Path $fixture 'internal-boot/boot/build/headless/HEADLESS.EFI';$child=Join-Path $fixture ('internal-boot/'+$childRelative)
 TextFile $wrapper 'synthetic wrapper';TextFile $child 'synthetic child'
-$global:HeadlessPackage=[pscustomobject]@{EfiSha256=(Get-FileHash $wrapper).Hash;ChildSha256=(Get-FileHash $child).Hash}
+$global:HeadlessPackage=[pscustomobject]@{HardwareProfile='ASUS-TUF-B650M-PLUS-WIFI-3057-RTX3090-FE';EfiSha256=(Get-FileHash $wrapper).Hash;ChildSha256=(Get-FileHash $child).Hash}
 [void][IO.Directory]::CreateDirectory((Join-Path $fixture 'internal-boot/install'))
 [IO.File]::Copy((Join-Path $PSScriptRoot 'automatic-policy.ps1'),(Join-Path $fixture 'internal-boot/install/automatic-policy.ps1'),$false)
 $helperPath=(Join-Path $PSScriptRoot 'headless-package.ps1').Replace("'","''")
@@ -74,6 +74,13 @@ function Remove-ItemProperty {param($LiteralPath,$Name,$ErrorAction)$global:Head
 try {
  & $installer -Assets $assets
  Check ($global:HeadlessBcdCalls -eq 0 -and $global:HeadlessHiber -eq 1) 'stage-only does not access BCD or registry writes'
+ $splashSource=Join-Path (Split-Path $wrapper) 'SPLASH.BIN'
+ $splashTarget=Join-Path $target 'EFI/WindowsGPUUnlock/SPLASH.BIN'
+ Check (!(Test-Path -LiteralPath $splashTarget)) 'text-only package does not stage a splash'
+ TextFile $splashSource ('synthetic splash bytes '*40)
+ $global:HeadlessPackage | Add-Member -NotePropertyName SplashSha256 -NotePropertyValue (Get-FileHash $splashSource).Hash
+ & $installer -Assets $assets
+ Check ((Get-FileHash -LiteralPath $splashTarget).Hash -eq $global:HeadlessPackage.SplashSha256) 'optional splash staged and verified on dedicated ESP'
  $global:HeadlessFailPath=$true;$failed=$false;try{& $installer -Assets $assets -Register}catch{$failed=$true}
  Check ($failed -and $global:HeadlessEntries.Count -eq 2 -and !(Test-Path -LiteralPath $global:HeadlessState)) 'partial registration deletes only the attributed new entry and its state'
  Check (($global:HeadlessOrder -join ',') -eq (@($global:HeadlessOldId,'{bootmgr}') -join ',')) 'partial registration preserves original priority'
@@ -83,6 +90,12 @@ try {
  Check ($registered.Mode -eq 'registered' -and $global:HeadlessHiber -eq 1) 'registration leaves power setting unchanged'
  $initial=[IO.File]::ReadAllBytes($global:HeadlessState);$registeredOrder=@($global:HeadlessOrder)
  $failed=$false;try{& $installer -EnableAutomatic}catch{$failed=$true};Check $failed 'promotion requires explicit success flag'
+ $calls=$global:HeadlessBcdCalls
+ TextFile $splashTarget 'changed installed splash'
+ $failed=$false
+ try{& $installer -EnableAutomatic -ConfirmedSuccess}catch{$failed=$_.Exception.Message -match 'Installed headless artifact changed'}
+ Check ($failed -and $global:HeadlessBcdCalls -eq $calls) 'changed splash prevents promotion before BCD access'
+ [IO.File]::Copy($splashSource,$splashTarget,$true)
  $global:HeadlessFailOrder=$true;$failed=$false;try{& $installer -EnableAutomatic -ConfirmedSuccess}catch{$failed=$true}
  Check ($failed -and ($global:HeadlessOrder -join ',') -eq ($registeredOrder -join ',') -and $global:HeadlessHiber -eq 1) 'partial order mutation rolls back order and power'
  Check ((Get-Content $global:HeadlessState -Raw | ConvertFrom-Json).Mode -eq 'registered') 'partial mutation restores saved metadata'

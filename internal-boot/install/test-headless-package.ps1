@@ -107,6 +107,26 @@ Check ((Get-HeadlessGuidInitializer ([guid]'01234567-89ab-cdef-0123-456789abcdef
 Put $normal 'internal-boot/boot/build/unrelated/ignored.h' 'ignored generated file'
 Check ((Assert-HeadlessPackage $normal).EfiSha256 -eq $m.EfiSha256) 'unrelated ignored build header does not become a source input'
 
+$splashRelative='internal-boot/boot/build/headless/SPLASH.BIN'
+$splashHeader='internal-boot/boot/build/headless/splash-contract.h'
+$f=NewFixture 'with-splash'
+$m=ReadJson $f $packageRelative
+Put $f $splashRelative ('synthetic splash bytes '*40)
+$m | Add-Member -NotePropertyName SplashBytes -NotePropertyValue (Get-Item -LiteralPath (FixturePath $f $splashRelative)).Length
+$m | Add-Member -NotePropertyName SplashSha256 -NotePropertyValue (Hash $f $splashRelative)
+Put $f $splashHeader ('#define GU_SPLASH_BYTES '+$m.SplashBytes+"`n"+'#define GU_SPLASH_SHA256 "'+$m.SplashSha256+'"')
+$m.Inputs=@(Get-HeadlessInputInventory $f -WithContract -WithSplashContract)
+PutJson $f $packageRelative $m
+Check ((Assert-HeadlessPackage $f).SplashSha256 -ceq $m.SplashSha256) 'optional splash and build contract accepted'
+Put $f $splashRelative ('different splash bytes '*40)
+Reject 'modified splash rejected' {Assert-HeadlessPackage $f} 'Splash asset does not match its manifest'
+Put $f $splashRelative ('synthetic splash bytes '*40)
+Put $f $splashHeader '#define GU_SPLASH_BYTES 1'
+Reject 'splash contract must match manifest' {Assert-HeadlessPackage $f} 'Wrapper splash contract mismatch'
+$m.PSObject.Properties.Remove('SplashBytes')
+PutJson $f $packageRelative $m
+Reject 'incomplete splash metadata rejected' {Assert-HeadlessPackage $f} 'Invalid splash asset metadata'
+
 foreach($item in @(
  @('source-drift','internal-boot/unlock/app.c'),
  @('boot-header-drift','internal-boot/boot/media.h'),

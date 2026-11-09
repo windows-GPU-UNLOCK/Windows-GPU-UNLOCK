@@ -19,6 +19,12 @@ $m=Get-Content (Join-Path $repo 'internal-boot/boot/build/headless/usb-manifest.
 # profile names which must never bypass the local evidence gate.
 . (Join-Path $repo 'internal-boot/unlock/local-profile.ps1')
 Assert-GuUsbManifest $repo $m
+if($m.PSObject.Properties['SplashSha256']){
+ $splash=Join-Path $repo 'internal-boot/boot/build/headless/SPLASH.BIN'
+ if($m.SplashSha256 -cnotmatch '^[0-9a-f]{64}$' -or $m.SplashBytes -le 472 -or $m.SplashBytes -gt (192MB+472) -or
+    (Get-Item -LiteralPath $splash).Length -ne $m.SplashBytes -or (Sha $splash) -cne $m.SplashSha256){throw 'Splash asset does not match its manifest'}
+ Put $splash 'EFI\WindowsGPUUnlock\SPLASH.BIN' $m.SplashSha256
+}
 $child=Join-Path $repo 'internal-boot/unlock/build/experimental/entryLatchedSs1Full/internal/automatic/headless-research/usb/RTX3090-EXPERIMENTAL-entryLatchedSs1Full-INTERNAL-AUTO-HEADLESS-RESEARCH-USB.EFI'
 $boot=Join-Path $usb 'EFI\BOOT\BOOTX64.EFI'
 if(Test-Path -LiteralPath $boot) {
