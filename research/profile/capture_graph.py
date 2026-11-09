@@ -14,6 +14,26 @@ def parse_handles(text):
     if re.findall(r'^capture-complete=.*$', text, re.M) != ['capture-complete=1'] or \
             re.findall(r'^diagnostic-result status=.*$', text, re.M) != ['diagnostic-result status=0x0000000000000000']:
         raise ValueError('Need exactly one complete, successful diagnostic graph')
+    # Presence alone does not bind a success trailer to these records. The
+    # producer writes header -> graph -> completion -> caller result, while
+    # ordinary handoff/transport logs may surround that frame. Ordering checks
+    # only recorded syntax, not provenance or final persistence/flush success.
+    starts = list(re.finditer(r'^' + re.escape(MARKER) + r'$', text, re.M))
+    complete = re.search(r'^capture-complete=1$', text, re.M)
+    result = re.search(r'^diagnostic-result status=0x0000000000000000$', text, re.M)
+    if len(starts) != 1 or not starts[0].end() < complete.start() < result.start():
+        raise ValueError('Diagnostic graph markers are out of order')
+    outside = text[:starts[0].start()] + '\n' + text[complete.end():]
+    # Broader separators are refusal-only here: never normalize them into
+    # accepted frame boundaries. Include probe records, which the producer
+    # also emits between the graph header and completion footer. Optional
+    # parent-baseline observations keep their separate non-admission contract.
+    structural = re.compile(r'^(?:console|variable|path|handles?|protocol|opens?|'
+                            r'pci|gops?|driver|image|incomplete|cfg|mmio|probe|'
+                            r'binding|img|prom)(?:[\s=-]|$)')
+    if any(structural.match(line) for line in outside.splitlines()):
+        raise ValueError('Graph records outside completed diagnostic frame')
+    text = text[starts[0].end():complete.start()]
     headers = re.findall(r'^handles .*$', text, re.M)
     declared = re.fullmatch(r'handles status=0x([0-9a-f]{1,16}) count=0x([0-9a-f]{1,16})', headers[0]) if len(headers) == 1 else None
     if not declared or int(declared[1], 16) or not 1 <= int(declared[2], 16) <= 4096:
