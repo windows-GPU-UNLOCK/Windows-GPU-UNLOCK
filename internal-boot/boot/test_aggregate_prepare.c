@@ -26,7 +26,9 @@ static void Damage(unsigned fault) {
     case 4:PhysicalMode.FrameBufferBase=0;break;
     case 5:DisplayPaths[0][17]^=1;break;
     case 6:Input.WaitForKey=NULL;break;
-    case 7:Live.Edges[0].Count++;break;
+    /* A full capture lists unrelated opens first. The lock pins the RTX PCI
+     * open, so damage that edge. On the synthetic graph it is still edge 0. */
+    case 7:{UINTN i;for(i=0;i<Live.Count;i++)if(Live.Edges[i].Handle==H(PCI)){Live.Edges[i].Count++;break;}Check(i<Live.Count,"pinned PCI edge exists to damage");break;}
     case 8:Table.StandardErrorHandle=H(PCI);break;
     case 9:Edge(PRIMARY,OBSERVER,PRIMARY,&GopGuid,EFI_OPEN_PROTOCOL_BY_DRIVER);break;
     case 15:ParentDrift=TRUE;break;
