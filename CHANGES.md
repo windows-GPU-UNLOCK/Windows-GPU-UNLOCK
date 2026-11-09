@@ -1,5 +1,15 @@
 # Changes
 
+## Unreleased — refuse USB staging while BitLocker protection is active
+
+- `stage-usb.ps1` refuses before the first write while BitLocker protection on C:
+  is active. Elevated, it reads `Get-BitLockerVolume`; otherwise the shell's
+  BitLocker property. It never changes encryption settings.
+- Document in HEADLESS-USB why an active protector causes a silent power-off after
+  a clean unlock: an invisible recovery prompt on the dark display (issue #125).
+- `stage-usb.ps1` is part of the LOCAL input digest, so older LOCAL evidence
+  becomes stale and `test-profile.ps1` must be rerun.
+
 ## Unreleased — preserve captured state in host qualification fixtures
 
 - Initialize the app mock's PCI attributes from its captured command, including
