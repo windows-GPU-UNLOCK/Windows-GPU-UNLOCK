@@ -43,7 +43,7 @@
 #define GU_FAMILY_CHIP_ID 0xb74000a1U
 /* These reviewed SKUs do not form a free identity/memory cross product.
  * LOCAL driver admission remains PCI-specific in proven.json. */
-#if !(((GU_BOARD_ID == 0x248210deU || GU_BOARD_ID == 0x248410deU || GU_BOARD_ID == 0x24c910deU) && GU_DEVICE_MEMORY_SIZE == 0x2000U) || (GU_BOARD_ID == 0x248710deU && GU_DEVICE_MEMORY_SIZE == 0x3000U))
+#if !(((GU_BOARD_ID == 0x248210deU || GU_BOARD_ID == 0x248410deU || GU_BOARD_ID == 0x24c910deU || GU_BOARD_ID == 0x249d10deU) && GU_DEVICE_MEMORY_SIZE == 0x2000U) || (GU_BOARD_ID == 0x248710deU && GU_DEVICE_MEMORY_SIZE == 0x3000U))
 #error Card identity or memory is outside the reviewed GA104 family combinations
 #endif
 #elif GU_GPU_FAMILY == GU_GPU_FAMILY_GA106
