@@ -21,6 +21,33 @@ unlock/build/experimental/entryLatchedSs1Full/RTX3090-EXPERIMENTAL-entryLatchedS
 
 The build checks PE/COFF structure. During original public preparation, a rebuild with clang 20.1.8 matched the successful USB EFI SHA-256. Compare a new build using `Get-FileHash`. `HardwareTested=false` in a new build manifest means the automated build did not test real hardware. Historical successful-case evidence is kept separately in `evidence/`.
 
+## Offline PE file-backing regression
+
+Both verifier copies check header/table bounds, nonoverlapping section ranges,
+complete section raw bytes, and file backing for the executable entry and
+relocation directory. A headers-only truncated file must not receive a successful
+verification report. Zero-filled non-entry sections remain allowed.
+
+```text
+python -m unittest discover -s unlock/tests -p test_pe_file_bounds.py -v
+```
+
+This suite uses constructed PE bytes and a synthetic linker map on Linux or
+Windows. It needs only Python, runs both verifier copies including their optimized
+CLI, and never builds or executes an EFI image. The verifier establishes these
+file-layout and existing identity/import/flag/map checks, not full PE loader
+compatibility, relocation contents, signature trust, firmware behavior, GPU safety
+or Windows recovery. Real builds and native firmware were not tested here.
+
+Validation on Linux: the initial 11-test regression suite against main
+`dc19de9` produced 36 failing and 10 error subcases; after the fix it passed.
+The expanded 16-test suite passes normally and with `python -O`, covering both
+copies, raw padding, zero-fill, exact ends, overflow and overlap refusals.
+On invalid input the CLI returns nonzero and does not write a new report. An
+existing output file is left unchanged; callers must check the exit status and
+match the report hash to the current image, not treat file existence as success.
+The existing build scripts stop when verification exits nonzero.
+
 ## Host mock checks
 
 These tests do not access a GPU. MSVC/Windows SDK are required; use `-VcVars` if your Visual Studio path differs. The full command below requires local fixtures from the owning PC. PROM, raw captures and firmware are not published.
