@@ -216,6 +216,9 @@ static EFI_STATUS EFIAPI map_buffer(EFI_PCI_IO_PROTOCOL *p,EFI_PCI_IO_PROTOCOL_O
   CHECK(p==&pci && operation==EfiPciIoOperationBusMasterCommonBuffer);
   TEST_BUFFER *b=cpu_buffer(cpu);CHECK(*bytes==b->bytes && !b->mapped && !b->freed);
   fake.maps++;if(fake.mode==MAP_FAIL && fake.maps==1)return EFI_UNSUPPORTED;
+  /* Fake DMA must be non-identity even if the host allocator happens to
+   * return our next synthetic address. Keep addresses sorted for dma_pointer. */
+  if(fake.next_dma==(UINT64)(UINTN)cpu)fake.next_dma+=4096;
   b->dma=fake.next_dma;fake.next_dma+=b->bytes;CHECK(fake.next_dma<=0xffffffffULL);
   CHECK(b->dma!=(UINT64)(UINTN)cpu);b->mapped=TRUE;fake.live_maps++;
   *device_address=b->dma;*mapping=b;

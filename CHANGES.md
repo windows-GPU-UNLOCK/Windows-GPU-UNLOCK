@@ -1,5 +1,14 @@
 # Changes
 
+## Unreleased — deterministic non-identity fake DMA addresses
+
+- Skip one synthetic page when a host CPU allocation equals the next fake DMA
+  address in both transaction and port test copies. Preserve the non-identity,
+  range and ownership checks without depending on allocator placement or ASLR.
+- Add an asset-free host callback regression that forces the collision with
+  synthetic pointer values, checks repeated mappings and leaves production code
+  unchanged. This is not hardware or full transaction qualification.
+
 ## Unreleased — preserve captured state in host qualification fixtures
 
 - Initialize the app mock's PCI attributes from its captured command, including

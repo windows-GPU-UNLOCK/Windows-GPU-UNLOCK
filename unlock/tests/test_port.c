@@ -33,6 +33,8 @@ static EFI_STATUS EFIAPI map(EFI_PCI_IO_PROTOCOL *P, EFI_PCI_IO_PROTOCOL_OPERATI
  VOID *C, UINTN *N, EFI_PHYSICAL_ADDRESS *D, VOID **M) {
   (void)P;assert(O==EfiPciIoOperationBusMasterCommonBuffer);assert(C && *N);
   fake.maps++; if(fake.map_fail)return EFI_UNSUPPORTED;
+  /* Do not depend on the host allocator/ASLR avoiding this synthetic range. */
+  if(fake.next_dma==(UINT64)(UINTN)C)fake.next_dma+=4096;
   *D=fake.next_dma;fake.next_dma+=0x100000;
   if(fake.high_map)*D=0x100000000ULL;
   if(fake.unaligned_map)(*D)++;
@@ -103,7 +105,8 @@ int main(void) {
   *(UINT32 *)(config+0x2c)^=1;assert(!GuTargetConfig((UINT32 *)config,0,1,0,0));
   setup(); VOID *cpu=NULL;UINT64 dma=0;
   assert(!EFI_ERROR(GuDmaAllocate(59136,&cpu,&dma)));
-  assert(cpu && dma==0x12000000 && dma!=(UINTN)cpu && fake.maps==1);
+  UINT64 expected_dma=(UINT64)(UINTN)cpu==0x12000000ULL?0x12001000ULL:0x12000000ULL;
+  assert(cpu && dma==expected_dma && dma!=(UINTN)cpu && fake.maps==1);
   for(UINTN i=0;i<15*4096;i++)assert(((UINT8 *)cpu)[i]==0);
   assert(!EFI_ERROR(GuDmaFree(cpu,dma)) && fake.unmaps==1 && fake.frees==1);
   for(int mode=0;mode<5;mode++) {
