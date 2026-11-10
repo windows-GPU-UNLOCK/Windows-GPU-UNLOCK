@@ -18,6 +18,9 @@ static GRAPH Live;
 static int Scenario,Calls,Checks,OutputCalls,LogCalls;
 static EFI_HANDLE CalledAgent[2],CalledController[2];
 static EFI_SYSTEM_TABLE *LastTable;
+#ifdef GU_AMD_RETAINED_MULTI_DISPLAY
+static VOID AmdRetainedTestTopology(VOID);
+#endif
 static EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE AmdMode,RtxMode;
 static EFI_GRAPHICS_OUTPUT_MODE_INFORMATION AmdInfo,RtxInfo;
 static EFI_GRAPHICS_OUTPUT_PROTOCOL AmdGop,RtxGop;
@@ -193,16 +196,24 @@ static EFI_STATUS Log(VOID *context,const char *event,EFI_STATUS s) {
 static EFI_STATUS Run(int scenario) {
   Scenario=scenario;Calls=0;OutputCalls=0;LogCalls=0;
   memcpy(TestAmdPath,AmdPath,sizeof(TestAmdPath));memcpy(TestRtxPath,RtxPath,sizeof(TestRtxPath));
-#ifdef GU_PROFILE_LOCAL
+#if defined(GU_PROFILE_LOCAL) || defined(GU_AMD_RETAINED_MULTI_DISPLAY)
   const UINT8 observedTarget[]={FX_PRIMARY_PATH_BYTES};
   Check(sizeof(observedTarget)==sizeof(TestRtxPath) && FX_CONTROLLER_BYTES==sizeof(TestRtxPath)-12,
         "captured LOCAL path dimensions match the compiled target");
   memcpy(TestRtxPath,observedTarget,sizeof(TestRtxPath));
+#ifdef GU_AMD_RETAINED_MULTI_DISPLAY
+  const UINT8 observedAmd[]={FX_AMD_DISPLAY_PATH_BYTES};
+  Check(sizeof(observedAmd)==sizeof(TestAmdPath),"captured AMD path dimensions match");
+  memcpy(TestAmdPath,observedAmd,sizeof(TestAmdPath));
+#endif
 #endif
   if(scenario==23)TestRtxPath[sizeof(TestRtxPath)-8]=0x40; /* FULL02 observed output endpoint. */
   if(scenario==24){TestRtxPath[sizeof(TestRtxPath)-8]=0x40;TestAmdPath[28]^=0x20;}
   if(scenario==28)TestRtxPath[17]^=1; /* Different PCI ancestry. */
   Live.Count=sizeof(FixtureEdges)/sizeof(FixtureEdges[0]);memcpy(Live.Edges,FixtureEdges,sizeof(FixtureEdges));
+#ifdef GU_AMD_RETAINED_MULTI_DISPLAY
+  AmdRetainedTestTopology();
+#endif
   if(scenario==1)Live.Edges[Live.Count++]=(EDGE){FX_Rtx,FX_Input,FX_Rtx,TextGuid,16,1};
   if(scenario==14)Live.Edges[Live.Count++]=(EDGE){FX_Rtx,FX_OutAgent,FX_Input,Dummy,8,1};
   if(scenario==15)Drop(FX_Amd,FX_OutAgent,&TextGuid);
@@ -240,6 +251,9 @@ static EFI_STATUS Run(int scenario) {
   if(scenario==8)OutBinding.Version=0x11;
   t.BootServices=&bs;t.ConsoleOutHandle=FX_Console;t.StandardErrorHandle=FX_Error;t.ConsoleInHandle=FX_Input;
   t.ConOut=&Text;t.StdErr=&Text;t.ConIn=&Keys;
+#ifdef GU_RELEASE_AUDIT_TEST_CONSOLE_SETUP
+  GU_RELEASE_AUDIT_TEST_CONSOLE_SETUP();
+#endif
   return GuPrepareConsole(&t,Log,NULL);
 }
 typedef struct {

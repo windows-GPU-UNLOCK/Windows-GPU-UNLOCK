@@ -254,7 +254,11 @@ class CompatibilityTests(unittest.TestCase):
                     path.write_text(path.read_text().replace('value=0x0000000000000300','value=0x0000000000000700'))
             before=self.result()
             for path in self.folder.glob('DIAG*.TXT'):path.write_text(path.read_text()+supplemental)
-            self.assertEqual(self.result(),before)
+            after=self.result()
+            for report in (before,after):
+                for observation in report['observations']:
+                    observation.pop('parent_baseline',None)
+            self.assertEqual(after,before)
             self.assert_reason('invalid_data' if mismatch else 'candidate','attributes_mismatch' if mismatch else 'images_pass')
 
     def test_per_card_driver_pins_do_not_inherit_another_skus_firmware(self):

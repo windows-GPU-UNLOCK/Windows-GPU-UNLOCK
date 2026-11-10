@@ -24,4 +24,8 @@ typedef struct {
 
 /* Supplied values only: no ownership, provenance or physical qualification. */
 BOOLEAN GuDecodeSnapshotValid(const GU_DS_SNAPSHOT *Snapshot);
+/* Separate release-origin observation policy: the existing raw2 envelope, or
+ * coherent raw3/cache300 with both decode capabilities supported. This does not
+ * widen correction eligibility or grant ownership/Stop/restore permission. */
+BOOLEAN GuDsReleaseSnapshotValid(const GU_DS_SNAPSHOT *Snapshot);
 BOOLEAN GuDecodeSnapshotMatches(const GU_DS_SNAPSHOT *Observed,const GU_DS_SNAPSHOT *Expected,BOOLEAN IoCleared);

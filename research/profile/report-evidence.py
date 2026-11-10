@@ -23,7 +23,7 @@ OUTCOMES = ('unknown', 'not-run', 'direct-usable', 'display-intervention',
             'manual-recovery', 'failed')
 BOOTS = ('unknown', 'full-shutdown', 'restart', 'sleep', 'hibernate')
 SOURCE_FILES = ('report-evidence.py', 'check-compatibility.py', 'make-profile.py',
-                'capture_graph.py', 'gpu_path.py', 'proven.json')
+                'capture_graph.py', 'gpu_path.py', 'parent_baseline.py', 'proven.json')
 HASH = re.compile(r'[0-9a-f]{64}')
 
 

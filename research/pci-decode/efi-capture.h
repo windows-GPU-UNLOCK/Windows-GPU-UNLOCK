@@ -23,3 +23,34 @@ typedef struct {
 } GU_DS_CAPTURE;
 
 EFI_STATUS GuDsEfiCapture(GU_DS_CAPTURE *Context,EFI_BOOT_SERVICES *Boot,const GU_DS_CAPTURE_TARGET *Target);
+
+#ifdef GU_DS_POST_STOP_CAPTURE
+#if GU_DS_POST_STOP_CAPTURE != 1
+#error GU_DS_POST_STOP_CAPTURE must be exactly 1 when enabled
+#endif
+/* Research opt-in only. Freezes a corrected pre-Stop snapshot before callbacks.
+ * Caller must obtain Before using the same pinned target (snapshots contain no
+ * historical device path). Before must be disjoint from Context/Boot/Target.
+ * Both scans must satisfy the
+ * restricted post-Stop transition and agree exactly. No Stop/claim/restore occurs.
+ * A NULL Before is rejected without touching Context. All other context lifetime,
+ * single-use and current-return-status requirements above still apply. */
+EFI_STATUS GuDsEfiCaptureAfterStop(GU_DS_CAPTURE *Context,EFI_BOOT_SERVICES *Boot,
+  const GU_DS_CAPTURE_TARGET *Target,const GU_DS_SNAPSHOT *Before);
+/* Separate hypothetical route: retain an actual raw2/cache300 baseline, and
+ * observe only raw0/cache0 with the exact restricted GPU/parent delta. Output
+ * Snapshot remains the actual observation; it is not a corrected-before value.
+ * No Stop or restoration is performed or qualified by this API. */
+EFI_STATUS GuDsEfiCaptureReleasedMismatch(GU_DS_CAPTURE *Context,EFI_BOOT_SERVICES *Boot,
+  const GU_DS_CAPTURE_TARGET *Target,const GU_DS_SNAPSHOT *Before);
+/* Release-only baseline; ordinary correction capture remains raw2-only. Both
+ * coherent raw3/cache300 and the prior raw2 envelope are observational inputs.
+ * Exact two-scan, frozen binding, single-use and alias rules remain unchanged. */
+EFI_STATUS GuDsEfiCaptureReleaseOrigin(GU_DS_CAPTURE *Context,EFI_BOOT_SERVICES *Boot,
+  const GU_DS_CAPTURE_TARGET *Target);
+/* Separate coherent IO+MEM origin; never interprets raw2/cache300 as raw3.
+ * Before must come from the same pinned target and remain independently frozen.
+ * Only an unchanged or coherently reduced IO/MEM subset is observed. */
+EFI_STATUS GuDsEfiCaptureIoMemAfterStop(GU_DS_CAPTURE *Context,EFI_BOOT_SERVICES *Boot,
+  const GU_DS_CAPTURE_TARGET *Target,const GU_DS_SNAPSHOT *Before);
+#endif

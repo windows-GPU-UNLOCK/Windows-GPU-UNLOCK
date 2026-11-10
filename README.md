@@ -62,7 +62,7 @@ GPU model.** Check the linked motherboard, BIOS and card requirements before bui
 | **RTX 3070 Ti 8GB** | Hardware success reported; internal headless | [Supported configuration](docs/COMPATIBILITY.en.md#profile-2-asus-tuf-b660m-e-d4--rtx-3070-ti-aggregate-console) |
 | **RTX 3080 12GB (220a / GA102)** | Contributor USB success; narrow experimental LOCAL admission, with reported DP recovery limitation | [Exact setup and evidence](evidence/b550-3080-12gb-local/README.md) |
 | **Other RTX 3080 / RTX 3080 Ti** | Private/research success reports; not general upstream profile support | [Setup audit](docs/CONFIRMED-SETUPS.en.md) |
-| **RTX 3090 FE 24GB** | Hardware success recorded; internal headless; default profile | [Supported configuration](docs/COMPATIBILITY.en.md#profile-1-asus-tuf-b650m--rtx-3090-fe-original) |
+| **RTX 3090 FE 24GB** | Hardware success recorded; internal headless; original B650M AMD-retained multi-display experiment | [Supported configuration](docs/COMPATIBILITY.en.md#profile-1-asus-tuf-b650m--rtx-3090-fe-original) |
 | **RTX 3090 Ti 24GB** | Hardware success reported; route depends on exact system | [X870 USB](docs/COMPATIBILITY.en.md#profile-3-gigabyte-x870-aorus-elite-wifi7--rtx-3090-ti-headless-usb) · [B660M internal](docs/COMPATIBILITY.en.md#profile-6-asus-tuf-b660m-e-d4--colorful-rtx-3090-ti-internal) · [Z690-I USB/internal](evidence/z690i-3090ti-usb/README.md) |
 
 The [compatibility guide](docs/COMPATIBILITY.en.md) lists exact build profiles and
@@ -85,6 +85,11 @@ Firmware assets and private, partition-specific EFI binaries are not bundled.
 | **Headless USB** | Reported RTX 3060 / 3090 Ti configurations; profile-specific wrapper and child on a FAT32 USB stick | [Headless USB guide](docs/HEADLESS-USB.en.md) |
 | Internal AMD-display manual / Auto | Original B650M profile, motherboard/iGPU display preserved; manual variant requires U | [Existing internal guide](docs/INTERNAL-BOOT.en.md) |
 | Legacy USB manual | Original AMD/iGPU display profile; U once, then Boot Override to Windows without reset | [Legacy USB guide](docs/GUIDE.en.md) |
+
+For the original B650M machine with one motherboard display and two RTX displays,
+see the opt-in [AMD-retained experiment](research/amd-retained/README.md).
+One manual boot succeeded on its recorded private build; automatic boot and the
+integrated revision still require their own physical verification.
 
 X870, B660-PLUS and H610M are not wired into `Configure.ps1` or `Headless.ps1`; use the USB guide.
 USB packages can also be built for the first two profiles, but their recorded

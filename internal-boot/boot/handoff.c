@@ -207,6 +207,8 @@ static EFI_STATUS LoadUnlock(VOID) {
   EFI_DEVICE_PATH_PROTOCOL *path=NULL;
 #ifdef GU_HEADLESS_RESEARCH
   if(s==EFI_SUCCESS)s=FilePath(OwnDevice,L"\\EFI\\WindowsGPUUnlock\\UNLOCK-HEADLESS.EFI",&path);
+#elif defined(GU_AUTOMATIC_BOOT)
+  if(s==EFI_SUCCESS)s=FilePath(OwnDevice,L"\\EFI\\WindowsGPUUnlock\\UNLOCK-AUTO.EFI",&path);
 #else
   if(s==EFI_SUCCESS)s=FilePath(OwnDevice,L"\\EFI\\WindowsGPUUnlock\\UNLOCK.EFI",&path);
 #endif
@@ -278,7 +280,11 @@ static EFI_STATUS FullChoice(VOID *Context,BOOLEAN *Skip) {
 #ifdef GU_HEADLESS_RESEARCH
   Say(L"SINGLE RTX HEADLESS UNLOCK RESEARCH: one guarded attempt, then Windows.\r\nNo key required. Esc within 5 seconds skips all changes.\r\nScreen may stop updating. Errors stop without reset/retry; power off and F8 Windows Boot Manager.\r\n");
 #elif defined(GU_AUTOMATIC_BOOT)
+#ifdef GU_AMD_RETAINED_MULTI_DISPLAY
+  Say(L"AMD DISPLAY RETAINED / RTX 1-2 DISPLAYS: automatic guarded unlock.\r\nEsc within 5 seconds boots Windows only. Keep AMD display/keyboard connected.\r\n");
+#else
   Say(L"Windows GPU UNLOCK AUTO: Esc within 5 seconds boots Windows only.\r\nOtherwise one guarded unlock, then Windows. No U required.\r\nKeep AMD display/keyboard connected. Firmware mouse/cursor may pause.\r\n");
+#endif
 #else
   Say(L"GPU UNLOCK TEST: driver release + original IO/MEM restore.\r\nFirmware mouse/cursor may pause. AMD display/keyboard must remain connected.\r\nEsc within 5 seconds skips all changes. Otherwise press U later in the original unlock app.\r\n");
 #endif

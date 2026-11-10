@@ -26,11 +26,11 @@ static BOOLEAN Separate(const GU_DS_DEVICE *a,const GU_DS_DEVICE *b) {
   return !Location(a,b) && a->Handle!=b->Handle && a->Interface!=b->Interface &&
     a->Handle!=b->Interface && a->Interface!=b->Handle;
 }
-BOOLEAN GuDecodeSnapshotValid(const GU_DS_SNAPSHOT *s) {
+static BOOLEAN SnapshotValid(const GU_DS_SNAPSHOT *s,UINT32 command) {
   if(!s)return FALSE;
   const GU_DS_DEVICE *g=&s->Gpu;
   if(s->Complete!=TRUE || !s->ParentCount || s->ParentCount>GU_DS_MAX_PARENTS || !Bounded(g) ||
-     !g->Bus || g->Device || g->Function || (g->Config[1]&0xffffU)!=2U ||
+     !g->Bus || g->Device || g->Function || (g->Config[1]&0xffffU)!=command ||
      g->Config[2]!=0x030000a1U || ((g->Config[3]>>16)&0x7fU) ||
      !g->Config[4] || (g->Config[4]&0xffffffU) ||
      !g->Config[11] || g->Config[11]==0xffffffffU || g->Supported==~0ULL || !(g->Supported&GU_DS_IO) ||
@@ -55,6 +55,14 @@ BOOLEAN GuDecodeSnapshotValid(const GU_DS_SNAPSHOT *s) {
     if(i+1==s->ParentCount && secondary!=g->Bus)return FALSE;
   }
   return TRUE;
+}
+BOOLEAN GuDecodeSnapshotValid(const GU_DS_SNAPSHOT *s) {
+  return SnapshotValid(s,2U);
+}
+BOOLEAN GuDsReleaseSnapshotValid(const GU_DS_SNAPSHOT *s) {
+  if(GuDecodeSnapshotValid(s))return TRUE;
+  return SnapshotValid(s,3U) && s->Gpu.Attributes==(GU_DS_IO|GU_DS_MEMORY) &&
+    (s->Gpu.Supported&(GU_DS_IO|GU_DS_MEMORY))==(GU_DS_IO|GU_DS_MEMORY);
 }
 static BOOLEAN DeviceEqual(const GU_DS_DEVICE *a,const GU_DS_DEVICE *b,BOOLEAN fixed) {
   if(!Location(a,b) || a->Handle!=b->Handle || a->Interface!=b->Interface || a->Supported!=b->Supported ||

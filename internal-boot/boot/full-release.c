@@ -12,8 +12,19 @@ static BOOLEAN OwnRecord(EFI_HANDLE Handle,const EFI_OPEN_PROTOCOL_INFORMATION_E
 #include "../unlock/sha256.h"
 #include <Protocol/EdidDiscovered.h>
 #include <IndustryStandard/Acpi.h>
+#if defined(GU_RELEASE_MISMATCH_RESEARCH) && !defined(GU_RELEASE_PARENT_AUDIT)
+#error Released mismatch research requires the host-only parent audit
+#endif
 
 #define GU_HEADLESS_MAX_DISPLAY_CHILDREN 4
+#ifdef GU_AMD_RETAINED_MULTI_DISPLAY
+#if !defined(GU_FULL_UNLOCK) || !defined(GU_PROFILE_B650M_3090FE) || defined(GU_HEADLESS_RESEARCH) || defined(GU_SINGLE_RTX_CONSOLE) || GU_CONSOLE_AGGREGATE || GU_NO_EDID_DRIVER || GU_BOARD_ID != 0x220410deU
+#error AMD-retained multi-display requires the original B650M full-release path
+#endif
+#endif
+#if defined(GU_HEADLESS_RESEARCH) || defined(GU_AMD_RETAINED_MULTI_DISPLAY)
+#define GU_MULTI_DISPLAY_RELEASE 1
+#endif
 
 static EFI_GUID EdidGuid=EFI_EDID_DISCOVERED_PROTOCOL_GUID;
 static const EFI_GUID MouseFile={0xc7a7030c,0xc3d8,0x45ee,{0xbe,0xd9,0x5d,0x9e,0x76,0x76,0x29,0x53}};
@@ -25,8 +36,11 @@ typedef struct {
   UINT32 Config[64],Cold[9];
   EFI_ACPI_ADDRESS_SPACE_DESCRIPTOR Bar;
   UINT64 Attributes;
+#ifdef GU_RELEASE_PARENT_AUDIT
+  UINT64 TargetAttributes; /* Planned restore target; Attributes stays observed. */
+#endif
   BOOLEAN Captured,Released,Owned,Restored;
-#ifdef GU_HEADLESS_RESEARCH
+#ifdef GU_MULTI_DISPLAY_RELEASE
   EFI_HANDLE Children[GU_HEADLESS_MAX_DISPLAY_CHILDREN];
   UINT8 ChildPaths[GU_HEADLESS_MAX_DISPLAY_CHILDREN][GU_RTX_DISPLAY_BYTES];
   UINTN ChildCount;
@@ -38,6 +52,9 @@ static BOOLEAN OwnRecord(EFI_HANDLE h,const EFI_OPEN_PROTOCOL_INFORMATION_ENTRY 
   return Full.Owned && h==PreparedPlan.RtxPci && e->AgentHandle==Full.Image && !e->ControllerHandle &&
     e->Attributes==EFI_OPEN_PROTOCOL_EXCLUSIVE && e->OpenCount==1;
 }
+#ifdef GU_RELEASE_PARENT_AUDIT
+#include "release-ownership-audit.h"
+#endif
 static const UINT32 ColdOffsets[]={0,0x118128,0x118234,0x110100,0x1fa828,0x823804,0x82381c,0x823820,0x1183a4};
 static EFI_STATUS Note(const char *event,EFI_STATUS s) {
   EFI_STATUS written=Full.Log(Full.Context,event,s);return s==EFI_SUCCESS?written:s;
@@ -56,15 +73,48 @@ static EFI_STATUS LogConfig(const char *label,const UINT32 *cfg) {
   return EFI_SUCCESS;
 }
 static EFI_STATUS ReadConfigFull(UINT32 *cfg) {
-  EFI_PCI_IO_PROTOCOL *io=NULL;
-  EFI_STATUS s=Interface(Full.Table->BootServices,PreparedPlan.RtxPci,&PciGuid,(VOID **)&io);
-  if(s!=EFI_SUCCESS || io!=PreparedPlan.RtxIo || !io->GetLocation || !io->Pci.Read)return EFI_NOT_READY;
-  UINTN seg=0,bus=0,dev=0,fun=0;
-  s=io->GetLocation(io,&seg,&bus,&dev,&fun);
-  if(s!=EFI_SUCCESS || seg!=GU_TARGET_SEGMENT || bus!=GU_TARGET_BUS || dev || fun)return EFI_UNSUPPORTED;
-  s=io->Pci.Read(io,EfiPciIoWidthUint32,0,64,cfg);
-  if(s==EFI_SUCCESS && (cfg[0]!=GU_BOARD_ID || cfg[11]!=GU_BOARD_SUBSYSTEM || cfg[2]!=0x030000a1 || cfg[4]!=(UINT32)GU_BAR0_BASE || (cfg[1]&4)))s=EFI_UNSUPPORTED;
-  return s;
+  EFI_SYSTEM_TABLE *table=Full.Table;
+  if(!cfg || !table || !table->BootServices)return EFI_INVALID_PARAMETER;
+  EFI_BOOT_SERVICES *boot=table->BootServices;
+  EFI_HANDLE_PROTOCOL handle=boot->HandleProtocol;
+  EFI_HANDLE target=PreparedPlan.RtxPci;EFI_PCI_IO_PROTOCOL *io=PreparedPlan.RtxIo;
+  if(!handle || !target || !io || !io->GetLocation || !io->Pci.Read)return EFI_NOT_READY;
+  EFI_PCI_IO_PROTOCOL_GET_LOCATION location=io->GetLocation;
+  EFI_PCI_IO_PROTOCOL_CONFIG read=io->Pci.Read;
+  /* Callback-boundary checks, not a firmware lock. Freeze methods before any
+   * callback and never dispatch through a method a callback has replaced. */
+#define CONFIG_BOUND (Full.Table==table && table->BootServices==boot && boot->HandleProtocol==handle && \
+  PreparedPlan.RtxPci==target && PreparedPlan.RtxIo==io && io->GetLocation==location && io->Pci.Read==read)
+  UINT32 observed[2][64];
+  for(UINTN pass=0;pass<2;pass++) {
+    EFI_PCI_IO_PROTOCOL *current=NULL;
+    EFI_STATUS s=handle(target,&PciGuid,(VOID **)&current);
+    if(s!=EFI_SUCCESS || !CONFIG_BOUND || current!=io)return EFI_NOT_READY;
+    UINTN seg=~(UINTN)0,bus=seg,dev=seg,fun=seg;
+    s=location(io,&seg,&bus,&dev,&fun);
+    if(s!=EFI_SUCCESS || !CONFIG_BOUND)return EFI_NOT_READY;
+    if(seg!=GU_TARGET_SEGMENT || bus!=GU_TARGET_BUS || dev || fun)return EFI_UNSUPPORTED;
+    /* No PCI value is reserved as a sentinel. Complementary fills plus equality
+     * reject unwritten/stale bytes while permitting legitimate all-ones data. */
+    for(UINTN i=0;i<64;i++)observed[pass][i]=pass?0x5a5a5a5aU:0xa5a5a5a5U;
+    s=read(io,EfiPciIoWidthUint32,0,64,observed[pass]);
+    if(s!=EFI_SUCCESS)return s;
+    if(!CONFIG_BOUND)return EFI_NOT_READY;
+    current=NULL;s=handle(target,&PciGuid,(VOID **)&current);
+    if(s!=EFI_SUCCESS || !CONFIG_BOUND || current!=io)return EFI_NOT_READY;
+    seg=bus=dev=fun=~(UINTN)0;
+    s=location(io,&seg,&bus,&dev,&fun);
+    if(s!=EFI_SUCCESS || !CONFIG_BOUND || seg!=GU_TARGET_SEGMENT || bus!=GU_TARGET_BUS || dev || fun)return EFI_NOT_READY;
+  }
+  EFI_PCI_IO_PROTOCOL *final=NULL;
+  EFI_STATUS finalStatus=handle(target,&PciGuid,(VOID **)&final);
+  if(finalStatus!=EFI_SUCCESS || !CONFIG_BOUND || final!=io)return EFI_NOT_READY;
+#undef CONFIG_BOUND
+  if(!Bytes(observed[0],observed[1],sizeof(observed[0])))return EFI_NOT_READY;
+  const UINT32 *v=observed[0];
+  if(v[0]!=GU_BOARD_ID || v[11]!=GU_BOARD_SUBSYSTEM || v[2]!=0x030000a1 || v[4]!=(UINT32)GU_BAR0_BASE || (v[1]&4))return EFI_UNSUPPORTED;
+  for(UINTN i=0;i<64;i++)cfg[i]=v[i];
+  return EFI_SUCCESS;
 }
 /* Shared descriptor policy for both pre-release reads and the later permit. */
 static EFI_STATUS BarDescription(const EFI_ACPI_ADDRESS_SPACE_DESCRIPTOR *d) {
@@ -305,7 +355,7 @@ static EFI_STATUS FullConsumers(const GRAPH *g) {
   Full.ChildCount=1;
   return EFI_SUCCESS;
 #endif
-#elif defined(GU_HEADLESS_RESEARCH)
+#elif defined(GU_MULTI_DISPLAY_RELEASE)
   UINTN owners=0,children=0;
   EFI_BOOT_SERVICES *bs=Full.Table->BootServices;
   for(UINTN i=0;i<g->Count;i++) {
@@ -319,6 +369,9 @@ static EFI_STATUS FullConsumers(const GRAPH *g) {
     else return EFI_ACCESS_DENIED;
   }
   if(owners!=1 || !children || Full.NvAgent==Full.Image)return EFI_ACCESS_DENIED;
+#ifdef GU_AMD_RETAINED_MULTI_DISPLAY
+  if(children>2)return EFI_ACCESS_DENIED;
+#endif
   Full.ChildCount=children;
   UINTN consoleChild=children;
   for(UINTN c=0;c<children;c++) {
@@ -368,6 +421,19 @@ static EFI_STATUS FullConsumers(const GRAPH *g) {
 #if GU_NO_EDID_DRIVER
   return Full.EdidAgent?EFI_ACCESS_DENIED:EFI_SUCCESS;
 #else
+#ifdef GU_AMD_RETAINED_MULTI_DISPLAY
+  /* The shared runtime EDID driver must retain its original AMD controller.
+   * FullExpected keeps that exact edge throughout every RTX-only detach. */
+  UINTN amdEdid=0;
+  for(UINTN i=0;i<g->Count;i++) {
+    const EDGE *e=&g->Edges[i];
+    if(e->Handle!=PreparedPlan.Amd || !GuGuidEqual(&e->Protocol,&EdidGuid))continue;
+    if(e->Agent!=Full.EdidAgent || e->Controller!=PreparedPlan.Amd ||
+       e->Attributes!=EFI_OPEN_PROTOCOL_BY_DRIVER || e->Count!=1)return EFI_ACCESS_DENIED;
+    amdEdid++;
+  }
+  if(amdEdid!=1)return EFI_ACCESS_DENIED;
+#endif
   return Full.EdidAgent!=Full.NvAgent && Full.EdidAgent!=Full.Image?EFI_SUCCESS:EFI_ACCESS_DENIED;
 #endif
 #else
@@ -447,7 +513,7 @@ static BOOLEAN FullExpected(const GRAPH *g,UINTN stage) {
   for(UINTN i=0;i<PreparedGraph->Count;i++) {
     const EDGE *e=&PreparedGraph->Edges[i];
     if(Removed(&PreparedPlan,e,2))continue;
-#ifdef GU_HEADLESS_RESEARCH
+#ifdef GU_MULTI_DISPLAY_RELEASE
     BOOLEAN removedEdid=FALSE;
     for(UINTN c=0;c<Full.EdidDetached;c++)if(e->Handle==Full.Children[c] && e->Agent==Full.EdidAgent && GuGuidEqual(&e->Protocol,&EdidGuid))removedEdid=TRUE;
     if(removedEdid)continue;
@@ -540,7 +606,17 @@ static EFI_STATUS CapturePermit(VOID) {
   if(s==EFI_SUCCESS && !io->Attributes)s=EFI_UNSUPPORTED;
   if(s==EFI_SUCCESS)s=io->Attributes(io,EfiPciIoAttributeOperationGet,0,&Full.Attributes);
   UINT64 expected=(Full.Config[1]&1?EFI_PCI_IO_ATTRIBUTE_IO:0)|(Full.Config[1]&2?EFI_PCI_IO_ATTRIBUTE_MEMORY:0);
-  if(s==EFI_SUCCESS && (Full.Attributes&(EFI_PCI_IO_ATTRIBUTE_IO|EFI_PCI_IO_ATTRIBUTE_MEMORY|EFI_PCI_IO_ATTRIBUTE_BUS_MASTER))!=expected)s=EFI_NOT_READY;
+  if(s==EFI_SUCCESS && (Full.Attributes&(EFI_PCI_IO_ATTRIBUTE_IO|EFI_PCI_IO_ATTRIBUTE_MEMORY|EFI_PCI_IO_ATTRIBUTE_BUS_MASTER))!=expected) {
+#ifdef GU_RELEASE_MISMATCH_RESEARCH
+    if(!ReleaseAudit.Mismatch || expected!=GU_DS_MEMORY || Full.Attributes!=(GU_DS_IO|GU_DS_MEMORY))
+#endif
+    s=EFI_NOT_READY;
+  }
+#ifdef GU_RELEASE_PARENT_AUDIT
+  Full.TargetAttributes=Full.Attributes;
+  if(s==EFI_SUCCESS && (!Bytes(Full.Config,ReleaseAudit.Captures[0].Snapshot.Gpu.Config,sizeof(Full.Config)) ||
+     Full.Attributes!=ReleaseAudit.Captures[0].Snapshot.Gpu.Attributes))s=EFI_NOT_READY;
+#endif
   if(s==EFI_SUCCESS)Full.Captured=TRUE;
   return s;
 }
@@ -549,30 +625,70 @@ static EFI_STATUS RestoreDecode(VOID) {
   EFI_BOOT_SERVICES *bs=Full.Table->BootServices;EFI_PCI_IO_PROTOCOL *io=NULL;
   static GRAPH claimGraph;UINT32 claimConfig[64]={0};UINT64 claimMask=0;
   EFI_STATUS s=ReadConfigFull(claimConfig);
+#ifdef GU_RELEASE_PARENT_AUDIT
+  if(s==EFI_SUCCESS)s=ReleaseAuditObserve(TRUE);
+#endif
   if(s==EFI_SUCCESS)s=LogConfig("post-nv-pci",claimConfig);
   if(s!=EFI_SUCCESS)return s;
+  UINT64 targetAttributes=Full.Attributes;
+#ifdef GU_RELEASE_PARENT_AUDIT
+  s=ReleaseAuditRestoreTarget(Full.Attributes,&targetAttributes);
+  if(s!=EFI_SUCCESS)return s;
+  Full.TargetAttributes=targetAttributes;
+  s=AuditOwnershipBegin();if(s!=EFI_SUCCESS)return Note("pci-decode-owner-baseline",s);
+#endif
+#ifdef GU_RELEASE_PARENT_AUDIT
+  EFI_TPL old=ReleaseAudit.Raise(TPL_NOTIFY);
+#else
   EFI_TPL old=bs->RaiseTPL(TPL_NOTIFY);
-  s=ReadConfigFull(claimConfig);
+#endif
+#ifdef GU_RELEASE_PARENT_AUDIT
+  s=ReleaseAuditObserve(TRUE);
+#endif
+  if(s==EFI_SUCCESS)s=ReadConfigFull(claimConfig);
   if(s==EFI_SUCCESS && !GuDecodeRestoreMask(Full.Config,claimConfig,&claimMask))s=EFI_NOT_READY;
   if(s==EFI_SUCCESS)s=Snapshot(bs,&claimGraph);
   if(s==EFI_SUCCESS && !FullExpected(&claimGraph,4))s=EFI_NOT_READY;
+#ifdef GU_RELEASE_PARENT_AUDIT
+  if(s==EFI_SUCCESS && !ReleaseAuditBound())s=EFI_NOT_READY;
+  if(s==EFI_SUCCESS)s=AuditOwnershipAcquire(&io);
+#else
   if(s==EFI_SUCCESS)s=bs->OpenProtocol(PreparedPlan.RtxPci,&PciGuid,(VOID **)&io,Full.Image,NULL,EFI_OPEN_PROTOCOL_EXCLUSIVE);
+#endif
   if(s==EFI_SUCCESS)Full.Owned=TRUE;
+#ifdef GU_RELEASE_PARENT_AUDIT
+  ReleaseAudit.Restore(old);
+#else
   bs->RestoreTPL(old);
+#endif
+#ifdef GU_RELEASE_PARENT_AUDIT
+  if(s!=EFI_SUCCESS){AuditOwnershipFinish();return Note("pci-decode-claim-failed",s);}
+#else
   if(s!=EFI_SUCCESS)return s;
+#endif
   if(io!=PreparedPlan.RtxIo)s=EFI_COMPROMISED_DATA;
+#ifdef GU_RELEASE_PARENT_AUDIT
+  if(s==EFI_SUCCESS)s=ReleaseAuditObserve(TRUE);
+#endif
   UINT32 cfg[64]={0};UINT64 needed=0,supported=0,attrs=0;
   if(s==EFI_SUCCESS)s=ReadConfigFull(cfg);
   if(s==EFI_SUCCESS && !GuDecodeRestoreMask(Full.Config,cfg,&needed))s=EFI_UNSUPPORTED;
   if(s==EFI_SUCCESS)s=io->Attributes(io,EfiPciIoAttributeOperationGet,0,&attrs);
-  UINT64 expected=Full.Attributes & ~((Full.Config[1]&~cfg[1]&1?EFI_PCI_IO_ATTRIBUTE_IO:0)|(Full.Config[1]&~cfg[1]&2?EFI_PCI_IO_ATTRIBUTE_MEMORY:0));
+  UINT64 expected=targetAttributes & ~((Full.Config[1]&~cfg[1]&1?EFI_PCI_IO_ATTRIBUTE_IO:0)|(Full.Config[1]&~cfg[1]&2?EFI_PCI_IO_ATTRIBUTE_MEMORY:0));
   if(s==EFI_SUCCESS && attrs!=expected)s=EFI_NOT_READY;
   if(s==EFI_SUCCESS)s=io->Attributes(io,EfiPciIoAttributeOperationSupported,0,&supported);
   if(s==EFI_SUCCESS && (supported&needed)!=needed)s=EFI_UNSUPPORTED;
   if(s==EFI_SUCCESS)s=Note("pci-decode-restore-intent-io-mem-only",EFI_SUCCESS);
+#ifdef GU_RELEASE_PARENT_AUDIT
+  if(s==EFI_SUCCESS)s=ReleaseAuditObserve(TRUE);
+#endif
   /* Durable logging can run firmware callbacks: recheck the exact target,
    * delta and cache under the held exclusive claim before the only write. */
+#ifdef GU_RELEASE_PARENT_AUDIT
+  old=ReleaseAudit.Raise(TPL_NOTIFY);
+#else
   old=bs->RaiseTPL(TPL_NOTIFY);
+#endif
   if(s==EFI_SUCCESS)s=AmdOnly();
   if(s==EFI_SUCCESS)s=ReadConfigFull(cfg);
   UINT64 rechecked=0;
@@ -581,25 +697,39 @@ static EFI_STATUS RestoreDecode(VOID) {
   if(s==EFI_SUCCESS && attrs!=expected)s=EFI_NOT_READY;
   if(s==EFI_SUCCESS)s=Snapshot(bs,&claimGraph);
   if(s==EFI_SUCCESS && !FullExpected(&claimGraph,4))s=EFI_NOT_READY;
+#ifdef GU_RELEASE_PARENT_AUDIT
+  if(s==EFI_SUCCESS && !ReleaseAuditBound())s=EFI_NOT_READY;
+  if(s==EFI_SUCCESS)s=AuditOwnershipEnable(needed);
+  ReleaseAudit.Restore(old);
+#else
   if(s==EFI_SUCCESS && needed)s=io->Attributes(io,EfiPciIoAttributeOperationEnable,needed,NULL);
   bs->RestoreTPL(old);
+#endif
   /* An API error/partial effect is never promoted by a matching readback. */
   if(s==EFI_SUCCESS)s=ReadConfigFull(cfg);
   if(s==EFI_SUCCESS && !Bytes(cfg,Full.Config,sizeof(cfg)))s=EFI_NOT_READY;
   if(s==EFI_SUCCESS)s=io->Attributes(io,EfiPciIoAttributeOperationGet,0,&attrs);
-  if(s==EFI_SUCCESS && attrs!=Full.Attributes)s=EFI_NOT_READY;
+  if(s==EFI_SUCCESS && attrs!=targetAttributes)s=EFI_NOT_READY;
   if(s==EFI_SUCCESS)s=CheckBar(FALSE);
   if(s==EFI_SUCCESS)s=Prom();
   UINT32 cold[9];
   if(s==EFI_SUCCESS)s=Cold(cold);
   if(s==EFI_SUCCESS && !Bytes(cold,Full.Cold,sizeof(cold)))s=EFI_NOT_READY;
+#ifdef GU_RELEASE_PARENT_AUDIT
+  EFI_STATUS closed=AuditOwnershipFinish();
+#else
   EFI_STATUS closed=bs->CloseProtocol(PreparedPlan.RtxPci,&PciGuid,Full.Image,NULL);
+#endif
   if(closed==EFI_SUCCESS)Full.Owned=FALSE;
   if(s==EFI_SUCCESS)s=closed;
   if(s==EFI_SUCCESS)Full.Restored=TRUE;
   return Note("pci-decode-restore-result",s);
 }
+#ifdef GU_RELEASE_PARENT_AUDIT
+static EFI_STATUS ReleaseGopAudited(EFI_SYSTEM_TABLE *t,EFI_HANDLE image,GU_PREPARE_LOG log,VOID *context) {
+#else
 EFI_STATUS GuReleaseGop(EFI_SYSTEM_TABLE *t,EFI_HANDLE image,GU_PREPARE_LOG log,VOID *context) {
+#endif
   Full=(FULL){0};Full.Table=t;Full.Image=image;Full.Log=log;Full.Context=context;
   if(!t || !t->BootServices || !image || !log)return EFI_INVALID_PARAMETER;
   EFI_BOOT_SERVICES *bs=t->BootServices;static GRAPH g;
@@ -607,10 +737,16 @@ EFI_STATUS GuReleaseGop(EFI_SYSTEM_TABLE *t,EFI_HANDLE image,GU_PREPARE_LOG log,
 #ifdef GU_HEADLESS_RESEARCH
   s=Note("headless-console-pre-release-verification",s);
 #endif
+#ifdef GU_AMD_RETAINED_MULTI_DISPLAY
+  s=Note("amd-retained-console-pre-release-verification",s);
+#endif
   if(s==EFI_SUCCESS)s=Snapshot(bs,&g);
   if(s==EFI_SUCCESS)s=FullConsumers(&g);
 #ifdef GU_HEADLESS_RESEARCH
   s=Note("headless-display-child-consumers-preflight",s);
+#endif
+#ifdef GU_AMD_RETAINED_MULTI_DISPLAY
+  s=Note("amd-retained-display-child-consumers-preflight",s);
 #endif
 #if GU_NO_EDID_DRIVER
   /* Recorded so a log shows the EDID stage was skipped by design, not lost. */
@@ -623,22 +759,29 @@ EFI_STATUS GuReleaseGop(EFI_SYSTEM_TABLE *t,EFI_HANDLE image,GU_PREPARE_LOG log,
   s=Note("full-release-preflight",s);if(s!=EFI_SUCCESS)return s;
   /* Stage 3 stops the EDID driver on each display child; without one only stage 4 remains. */
   for(UINTN stage=GU_NO_EDID_DRIVER?4U:3U;stage<=4;stage++) {
-#ifdef GU_HEADLESS_RESEARCH
+#ifdef GU_MULTI_DISPLAY_RELEASE
     UINTN repeats=stage==3?Full.ChildCount:1;
     for(UINTN child=0;child<repeats;child++) {
 #endif
     s=Note(stage==3?"detach-rtx-edid-intent-shared-pointer-pauses":"detach-nvidia-gop-intent",EFI_SUCCESS);
+#ifdef GU_RELEASE_PARENT_AUDIT
+    if(s==EFI_SUCCESS)s=ReleaseAuditObserve(FALSE);
+#endif
     if(s==EFI_SUCCESS)s=Alive(t,&PreparedPlan);
     UINT32 cfg[64],cold[9];
     if(s==EFI_SUCCESS)s=ReadConfigFull(cfg);
     if(s==EFI_SUCCESS && !Bytes(cfg,Full.Config,sizeof(cfg)))s=EFI_NOT_READY;
     if(s==EFI_SUCCESS)s=Cold(cold);
     if(s==EFI_SUCCESS && !Bytes(cold,Full.Cold,sizeof(cold)))s=EFI_NOT_READY;
+#ifdef GU_RELEASE_PARENT_AUDIT
+    EFI_TPL old=ReleaseAudit.Raise(TPL_NOTIFY);
+#else
     EFI_TPL old=bs->RaiseTPL(TPL_NOTIFY);
+#endif
     if(s==EFI_SUCCESS)s=Profile(stage==3?Full.EdidAgent:Full.NvAgent,stage==3);
     if(s==EFI_SUCCESS)s=Snapshot(bs,&g);
     if(s==EFI_SUCCESS && !FullExpected(&g,stage-1))s=EFI_NOT_READY;
-#ifdef GU_HEADLESS_RESEARCH
+#ifdef GU_MULTI_DISPLAY_RELEASE
     for(UINTN c=0;s==EFI_SUCCESS && c<Full.ChildCount;c++) {
       EFI_DEVICE_PATH_PROTOCOL *path=NULL;
       s=Interface(bs,Full.Children[c],&PathGuid,(VOID **)&path);
@@ -646,13 +789,22 @@ EFI_STATUS GuReleaseGop(EFI_SYSTEM_TABLE *t,EFI_HANDLE image,GU_PREPARE_LOG log,
     }
     if(s==EFI_SUCCESS)s=Alive(t,&PreparedPlan);
 #endif
+#ifdef GU_RELEASE_PARENT_AUDIT
+    ReleaseAudit.Restore(old);
+#else
     bs->RestoreTPL(old);
+#endif
     if(s!=EFI_SUCCESS)return Note("full-release-recheck-failed",s);
-#ifdef GU_HEADLESS_RESEARCH
-    s=bs->DisconnectController(stage==3?Full.Children[child]:PreparedPlan.RtxPci,stage==3?Full.EdidAgent:Full.NvAgent,NULL);
+    EFI_DISCONNECT_CONTROLLER disconnect=bs->DisconnectController;
+#ifdef GU_RELEASE_PARENT_AUDIT
+    if(!ReleaseAuditBound())return ReleaseAuditStatus(EFI_NOT_READY);
+    disconnect=ReleaseAudit.Disconnect;
+#endif
+#ifdef GU_MULTI_DISPLAY_RELEASE
+    s=disconnect(stage==3?Full.Children[child]:PreparedPlan.RtxPci,stage==3?Full.EdidAgent:Full.NvAgent,NULL);
     if(s==EFI_SUCCESS && stage==3)Full.EdidDetached++;
 #else
-    s=bs->DisconnectController(stage==3?PreparedPlan.Rtx:PreparedPlan.RtxPci,stage==3?Full.EdidAgent:Full.NvAgent,NULL);
+    s=disconnect(stage==3?PreparedPlan.Rtx:PreparedPlan.RtxPci,stage==3?Full.EdidAgent:Full.NvAgent,NULL);
 #endif
     s=Note(stage==3?"detach-edid-return":"detach-nvidia-return",s);if(s!=EFI_SUCCESS)return s;
     if(stage==3)s=Alive(t,&PreparedPlan);
@@ -660,14 +812,27 @@ EFI_STATUS GuReleaseGop(EFI_SYSTEM_TABLE *t,EFI_HANDLE image,GU_PREPARE_LOG log,
     if(s==EFI_SUCCESS)s=Snapshot(bs,&g);
     if(s==EFI_SUCCESS && !FullExpected(&g,stage))s=EFI_NOT_READY;
     s=Note(stage==3?"edid-detach-verified":"nvidia-detach-verified",s);if(s!=EFI_SUCCESS)return s;
-#ifdef GU_HEADLESS_RESEARCH
+#ifdef GU_MULTI_DISPLAY_RELEASE
     }
 #endif
   }
   s=RestoreDecode();if(s!=EFI_SUCCESS)return s;
+#ifdef GU_RELEASE_PARENT_AUDIT
+  s=ReleaseAuditRestored();if(s!=EFI_SUCCESS)return s;
+#endif
   s=GuVerifyReleased(t,TRUE);
   return Note("full-release-ready-for-original-unlock",s);
 }
+#ifdef GU_RELEASE_PARENT_AUDIT
+EFI_STATUS GuReleaseGop(EFI_SYSTEM_TABLE *t,EFI_HANDLE image,GU_PREPARE_LOG log,VOID *context) {
+  if(ReleaseAudit.Active || ReleaseAudit.ReleaseUsed)return EFI_ALREADY_STARTED;
+  if(!ReleaseAudit.Ready || ReleaseAudit.Failed || ReleaseAudit.Table!=t)return EFI_NOT_READY;
+  ReleaseAudit.ReleaseUsed=TRUE;ReleaseAudit.Active=TRUE;
+  EFI_STATUS s=ReleaseGopAudited(t,image,log,context);
+  ReleaseAudit.Active=FALSE;
+  return ReleaseAuditStatus(s);
+}
+#endif
 static GU_VERIFY_DIAGNOSTIC VerifyDiagnostic;
 const GU_VERIFY_DIAGNOSTIC *GuLastVerifyDiagnostic(VOID) {return &VerifyDiagnostic;}
 /* Exact-card PCIe capability at 0x78: Device Control at 0x80, Status at
@@ -681,9 +846,45 @@ static BOOLEAN VerifyConfigWord(UINTN word,UINT32 expected,UINT32 observed,BOOLE
   return (expected & ~clearable)==(observed & ~clearable) &&
     !(observed & clearable & ~expected);
 }
+#ifdef GU_RELEASE_PARENT_AUDIT
+static BOOLEAN FinalAuditDevice(const GU_DS_DEVICE *observed,const GU_DS_DEVICE *before,
+                               UINT64 attributes,BOOLEAN gpu,BOOLEAN checkCold) {
+  if(observed->Handle!=before->Handle || observed->Interface!=before->Interface ||
+     observed->Segment!=before->Segment || observed->Bus!=before->Bus || observed->Device!=before->Device ||
+     observed->Function!=before->Function || observed->Supported!=before->Supported || observed->Attributes!=attributes)
+    return FALSE;
+  for(UINTN i=0;i<64;i++) {
+    if(gpu) {
+      if(!VerifyConfigWord(i,before->Config[i],observed->Config[i],checkCold))return FALSE;
+    } else if(observed->Config[i]!=before->Config[i])return FALSE;
+  }
+  return TRUE;
+}
+static EFI_STATUS ReleaseAuditFinal(BOOLEAN checkCold) {
+  GU_RELEASE_AUDIT_STATE *a=&ReleaseAudit;UINT64 target=0;
+  const GU_DS_SNAPSHOT *before=&a->Captures[0].Snapshot;
+  if((checkCold!=TRUE && checkCold!=FALSE) ||
+     ReleaseAuditRestoreTarget(Full.Attributes,&target)!=EFI_SUCCESS || Full.TargetAttributes!=target ||
+     !Bytes(Full.Config,before->Gpu.Config,sizeof(Full.Config)) || !ReleaseAuditBound() ||
+     a->Next>=GU_RELEASE_AUDIT_CAPTURES)return ReleaseAuditStatus(EFI_NOT_READY);
+  GU_DS_CAPTURE *current=&a->Captures[a->Next++];
+  EFI_STATUS s=GuDsEfiCaptureReleaseOrigin(current,a->Boot,&a->Target);
+  /* Keep originals/target distinct; do not manufacture an observed snapshot
+   * with cleared bits or weaken the shared collector's snapshot predicates. */
+  if(s!=EFI_SUCCESS || !ReleaseAuditBound() || Full.Attributes!=before->Gpu.Attributes ||
+     Full.TargetAttributes!=target || !Bytes(Full.Config,before->Gpu.Config,sizeof(Full.Config)) ||
+     current->Snapshot.ParentCount!=before->ParentCount ||
+     !FinalAuditDevice(&current->Snapshot.Gpu,&before->Gpu,target,TRUE,checkCold))
+    return ReleaseAuditStatus(EFI_NOT_READY);
+  for(UINTN i=0;i<before->ParentCount;i++)
+    if(!FinalAuditDevice(&current->Snapshot.Parents[i],&before->Parents[i],
+                        before->Parents[i].Attributes,FALSE,checkCold))return ReleaseAuditStatus(EFI_NOT_READY);
+  return EFI_SUCCESS;
+}
+#endif
 /* No logging/console callbacks during verification. The caller reports only
  * after failure, or performs the original final fresh check after closing IO. */
-#ifdef GU_HEADLESS_RESEARCH
+#if defined(GU_HEADLESS_RESEARCH) || defined(GU_RELEASE_PARENT_AUDIT)
 static EFI_STATUS VerifyReleasedInner(EFI_SYSTEM_TABLE *t,BOOLEAN checkCold) {
 #else
 EFI_STATUS GuVerifyReleased(EFI_SYSTEM_TABLE *t,BOOLEAN checkCold) {
@@ -693,6 +894,11 @@ EFI_STATUS GuVerifyReleased(EFI_SYSTEM_TABLE *t,BOOLEAN checkCold) {
   static GRAPH g;UINT32 cfg[64],cold[9];
   EFI_STATUS s;
 #define VERIFY_STEP(label,expr) do {VerifyDiagnostic.Stage=(label);s=(expr);VerifyDiagnostic.Status=s;if(s!=EFI_SUCCESS)return s;} while(0)
+#ifdef GU_RELEASE_PARENT_AUDIT
+  /* These new callbacks precede every existing final display/config/graph
+   * check. In particular, a foreign claim created here cannot stale that check. */
+  VERIFY_STEP("verify-full-parent-history",ReleaseAuditFinal(checkCold));
+#endif
 #ifdef GU_HEADLESS_RESEARCH
   VERIFY_STEP("verify-zero-physical-gop-input",AmdOnly());
 #else
@@ -706,7 +912,11 @@ EFI_STATUS GuVerifyReleased(EFI_SYSTEM_TABLE *t,BOOLEAN checkCold) {
   VERIFY_STEP("verify-bar",CheckBar(FALSE));
   UINT64 attrs=0;
   VERIFY_STEP("verify-pci-attributes-read",PreparedPlan.RtxIo->Attributes(PreparedPlan.RtxIo,EfiPciIoAttributeOperationGet,0,&attrs));
+#ifdef GU_RELEASE_PARENT_AUDIT
+  VERIFY_STEP("verify-pci-attributes-match",attrs==Full.TargetAttributes?EFI_SUCCESS:EFI_NOT_READY);
+#else
   VERIFY_STEP("verify-pci-attributes-match",attrs==Full.Attributes?EFI_SUCCESS:EFI_NOT_READY);
+#endif
   if(checkCold) {
     VERIFY_STEP("verify-cold-read",Cold(cold));
     VERIFY_STEP("verify-cold-match",Bytes(cold,Full.Cold,sizeof(cold))?EFI_SUCCESS:EFI_NOT_READY);
@@ -717,11 +927,30 @@ EFI_STATUS GuVerifyReleased(EFI_SYSTEM_TABLE *t,BOOLEAN checkCold) {
   return EFI_SUCCESS;
 #undef VERIFY_STEP
 }
-#ifdef GU_HEADLESS_RESEARCH
+#if defined(GU_HEADLESS_RESEARCH) || defined(GU_RELEASE_PARENT_AUDIT)
 EFI_STATUS GuVerifyReleased(EFI_SYSTEM_TABLE *t,BOOLEAN checkCold) {
+#ifdef GU_RELEASE_PARENT_AUDIT
+  if(ReleaseAudit.Verifying)return EFI_ALREADY_STARTED;
+  if(!ReleaseAudit.Ready || ReleaseAudit.Failed || ReleaseAudit.Table!=t || !ReleaseAuditBound())return EFI_NOT_READY;
+  ReleaseAudit.Verifying=TRUE;
+#ifdef GU_HEADLESS_RESEARCH
+  EFI_TPL old=ReleaseAudit.Raise(TPL_NOTIFY);
+#endif
+  EFI_STATUS s=VerifyReleasedInner(t,checkCold);
+#ifdef GU_HEADLESS_RESEARCH
+  ReleaseAudit.Restore(old);
+#endif
+  if(s==EFI_SUCCESS && !ReleaseAuditBound()) {
+    s=EFI_NOT_READY;
+    VerifyDiagnostic=(GU_VERIFY_DIAGNOSTIC){.Stage="verify-final-bindings",.Status=s};
+  }
+  ReleaseAudit.Verifying=FALSE;
+  return s;
+#else
   if(!t || !t->BootServices || !t->BootServices->RaiseTPL || !t->BootServices->RestoreTPL)return EFI_INVALID_PARAMETER;
   EFI_TPL old=t->BootServices->RaiseTPL(TPL_NOTIFY);
   EFI_STATUS s=VerifyReleasedInner(t,checkCold);
   t->BootServices->RestoreTPL(old);return s;
+#endif
 }
 #endif

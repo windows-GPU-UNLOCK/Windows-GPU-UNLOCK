@@ -23,7 +23,10 @@ static UINT32 InitialFullConfig[64],MockConfig[64];
 static UINT64 MockAttributes;
 static int FullScenario,EnableCalls,ClaimCalls,CloseCalls,Phase,ColdCalls;
 static BOOLEAN LateChildDrift;
-#ifdef GU_HEADLESS_RESEARCH
+#ifdef GU_AMD_RETAINED_MULTI_DISPLAY
+static EFI_STATUS AmdRetainedTestLog(VOID *,const char *,EFI_STATUS);
+#endif
+#ifdef GU_MULTI_DISPLAY_RELEASE
 static UINT8 AdditionalChildPaths[GU_HEADLESS_MAX_DISPLAY_CHILDREN-1][GU_RTX_DISPLAY_BYTES];
 #ifdef FX_EXTRA_DISPLAY_CHILD_COUNT
 static const UINTN AdditionalChildCount=FX_EXTRA_DISPLAY_CHILD_COUNT;
@@ -80,7 +83,7 @@ static VOID LoadDriverFixture(const char *path,UINT8 *memory,UINTN size) {
 }
 #endif
 static EFI_STATUS ExtraHandle(EFI_HANDLE h,EFI_GUID *g,VOID **out) {
-#ifdef GU_HEADLESS_RESEARCH
+#ifdef GU_MULTI_DISPLAY_RELEASE
 #if GU_NO_EDID_DRIVER
   if(CapacityProbe)for(UINTN i=0;i<4;i++)if(h==(EFI_HANDLE)(UINTN)(FX_HANDLES+2+i)) {
     if(GuGuidEqual(g,&PathGuid)){*out=CapacityPaths[i];return EFI_SUCCESS;}
@@ -124,7 +127,7 @@ static EFI_STATUS EFIAPI MemRead(EFI_PCI_IO_PROTOCOL *io,EFI_PCI_IO_PROTOCOL_WID
     if(FullScenario==11 && Phase==4 && i==7)*(UINT32 *)dst^=1;
     /* Phase 3 follows the EDID stage; without an EDID driver the last cold read before the NV stop is phase 2. */
     if(FullScenario==19 && Phase==(GU_NO_EDID_DRIVER?2:3) && i==8)Live.Edges[Live.Count++]=(EDGE){FX_RtxPci,FX_NvAgent,FX_Input,PathGuid,8,1};
-#ifdef GU_HEADLESS_RESEARCH
+#ifdef GU_MULTI_DISPLAY_RELEASE
 #if GU_NO_EDID_DRIVER
     if((FullScenario==35 || FullScenario==36) && Phase==2 && i==8 && !LateChildDrift) {
       LateChildDrift=TRUE;
@@ -180,7 +183,7 @@ static EFI_STATUS EFIAPI Close(EFI_HANDLE h,EFI_GUID *g,EFI_HANDLE agent,EFI_HAN
 }
 static EFI_STATUS ExtraDisconnect(EFI_HANDLE h,EFI_HANDLE agent,EFI_HANDLE child) {
   Check(child==NULL,"no arbitrary child selection");Calls++;
-#ifdef GU_HEADLESS_RESEARCH
+#ifdef GU_MULTI_DISPLAY_RELEASE
 #if GU_NO_EDID_DRIVER
   {
     /* Calls 1 and 2 were the console drivers; with no EDID driver the next stop is NVIDIA's. */
@@ -228,7 +231,7 @@ static EFI_STATUS ExtraDisconnect(EFI_HANDLE h,EFI_HANDLE agent,EFI_HANDLE child
 }
 static EFI_STATUS FullLog(VOID *ctx,const char *event,EFI_STATUS status) {
   (void)ctx;(void)status;
-#ifdef GU_HEADLESS_RESEARCH
+#ifdef GU_MULTI_DISPLAY_RELEASE
   if(status!=EFI_SUCCESS)fprintf(stderr,"full event=%s status=%llx scenario=%d\n",event,(unsigned long long)status,FullScenario);
   if(!strcmp(event,"headless-console-pre-release-verification")) {
     if(FullScenario==23)Live.Edges[Live.Count++]=(EDGE){FX_RtxPci,FX_NvAgent,FX_Input,PathGuid,8,1};
@@ -268,7 +271,7 @@ static EFI_STATUS FullLog(VOID *ctx,const char *event,EFI_STATUS status) {
   if(!strcmp(event,"pci-decode-restore-intent-io-mem-only")) {
     if(FullScenario==15)return EFI_DEVICE_ERROR;
     if(FullScenario==16)
-#ifdef GU_HEADLESS_RESEARCH
+#ifdef GU_MULTI_DISPLAY_RELEASE
       Keys.WaitForKey=NULL;
 #else
       Drop(FX_Amd,FX_OutAgent,&TextGuid);
@@ -278,9 +281,15 @@ static EFI_STATUS FullLog(VOID *ctx,const char *event,EFI_STATUS status) {
   return EFI_SUCCESS;
 }
 static EFI_STATUS RunFull(int scenario) {
-  FullMode=FALSE;Check(Run(scenario==21?23:scenario==22?24:0)==EFI_SUCCESS,"hardware-validated Stage2A replay prerequisite");
+  FullMode=FALSE;
+  EFI_STATUS prepared=Run(scenario==21?23:scenario==22?24:0);
+#ifdef GU_RELEASE_AUDIT_TEST_CONSOLE_SETUP
+  if(prepared!=EFI_SUCCESS)return prepared;
+#else
+  Check(prepared==EFI_SUCCESS,"hardware-validated Stage2A replay prerequisite");
+#endif
   FullScenario=scenario;EnableCalls=ClaimCalls=CloseCalls=0;Phase=2;ColdCalls=0;LateChildDrift=FALSE;
-#ifdef GU_HEADLESS_RESEARCH
+#ifdef GU_MULTI_DISPLAY_RELEASE
 #ifdef FX_EXTRA_DISPLAY_CHILD_COUNT
   Check(AdditionalChildCount<GU_HEADLESS_MAX_DISPLAY_CHILDREN,"captured child count fits runtime capacity");
   memcpy(AdditionalChildPaths,RecordedAdditionalPaths,sizeof(AdditionalChildPaths));
@@ -315,8 +324,15 @@ static EFI_STATUS RunFull(int scenario) {
   if(scenario==17)MouseMemory[0x1000]^=1;
 #endif
   FullMode=TRUE;
+#ifdef GU_RELEASE_AUDIT_TEST_FULL_SETUP
+  GU_RELEASE_AUDIT_TEST_FULL_SETUP();
+#endif
+#ifdef GU_AMD_RETAINED_MULTI_DISPLAY
+  EFI_STATUS s=GuReleaseGop(LastTable,(VOID *)9999,AmdRetainedTestLog,NULL);
+#else
   EFI_STATUS s=GuReleaseGop(LastTable,(VOID *)9999,FullLog,NULL);
-#ifdef GU_HEADLESS_RESEARCH
+#endif
+#ifdef GU_MULTI_DISPLAY_RELEASE
   if(scenario==26)NvMemory[0x280]^=1;
 #endif
 #if !GU_NO_EDID_DRIVER
@@ -336,7 +352,7 @@ static VOID DecodeTests(VOID) {
   }
 }
 #if !GU_NO_EDID_DRIVER /* the legacy suite replays the EDID stage; test_headless_full.c has the no-EDID suite */
-#ifdef GU_HEADLESS_RESEARCH
+#ifdef GU_MULTI_DISPLAY_RELEASE
 int LegacyFullMain(int argc,char **argv) {
 #else
 int main(int argc,char **argv) {

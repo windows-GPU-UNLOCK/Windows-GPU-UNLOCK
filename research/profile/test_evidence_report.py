@@ -121,11 +121,27 @@ class EvidenceReportTests(unittest.TestCase):
         self.assertFalse(result['source_revision']['verified'])
         self.assertEqual(result['source_revision']['value'], 'a' * 40)
         self.assertEqual(len(result['installed_tool_sources']), len(subject.SOURCE_FILES))
+        self.assertIn('parent_baseline.py', {row['path'] for row in result['installed_tool_sources']})
         for row in result['installed_tool_sources']:
             self.assertEqual(row['sha256'], subject.digest((HERE / row['path']).read_bytes()))
         for revision in ('HEAD', 'a' * 39, 'PRIVATE-PATH', 'A' * 40):
             with self.assertRaises(ValueError):
                 self.report(source_revision=revision)
+
+    def test_parent_parser_bytes_are_part_of_the_tool_fingerprint(self):
+        before=self.report()
+        original=subject.read_regular
+        def changed(path,limit):
+            data=original(path,limit)
+            return data+b'\n# synthetic dependency change\n' if path.name=='parent_baseline.py' else data
+        with patch.object(subject,'read_regular',side_effect=changed):
+            after=self.report()
+        old={row['path']:row['sha256'] for row in before['installed_tool_sources']}
+        new={row['path']:row['sha256'] for row in after['installed_tool_sources']}
+        self.assertEqual({name for name in old if old[name]!=new[name]},{'parent_baseline.py'})
+        self.assertEqual(before['compatibility'],after['compatibility'])
+        self.assertIs(after['hardware_tested'],False)
+        self.assertIs(after['write_eligible'],False)
 
     def test_local_build_match_is_not_capture_provenance(self):
         manifest, efi, _ = self.build()

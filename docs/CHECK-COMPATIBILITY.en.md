@@ -62,6 +62,17 @@ input paths, raw records, serial numbers, memory addresses, PROM hashes and
 firmware contents. No report or capture is uploaded. Review anything you choose
 to share; do not attach raw firmware dumps to an issue.
 
+Newer format-2 reports may also include the optional `parent_baseline` observation.
+It summarizes the NVIDIA GPU and its PCI-to-PCI bridge ancestry with typed IDs,
+class/revision, BDF, command/decode attributes, and bridge secondary/subordinate
+bus numbers. Raw PCI configuration, BARs, bridge windows, EFI pointers/handles/paths,
+and opaque 64-bit attributes are omitted. Its state is `recorded`, `unavailable`,
+`invalid`, or `not_recorded`; malformed or absent optional records do not change the
+primary checker status, profile assessment, or write eligibility. The primary
+`pci-attributes` observation and this ancestry snapshot are separate reads and may
+differ. This extension remains format 2 and does not prove provenance or hardware
+compatibility.
+
 Paste the reviewed JSON into the optional **Offline compatibility report** field
 of the [compatibility issue form](https://github.com/impacifist/Windows-GPU-UNLOCK/issues/new?template=compatibility.yml).
 Keep board/BIOS, physical display connection, source/build and VBIOS history in the
@@ -86,6 +97,16 @@ up to 1 MiB each), validates their typed schema and prints `same`, `different` o
 `--lang ko` changes the explanatory note. Duplicate keys, non-finite numbers and
 invalid fields are refused. Different checker versions or envelope digests defer
 comparison. Old format-1 reports should be regenerated from the same captures.
+
+The optional parent baseline is compared only when both reports contain a valid
+`recorded` observation; absent parent data in older format-2 reports is
+`unavailable`, never `same`. The comparison covers only the allowlisted public
+fields described above and cannot establish device identity or profile eligibility.
+
+Maintainer host checks exercise the actual diagnostic C producer through the
+same Python checker and JSON comparator (`research/profile/test_parent_probe.py`).
+All EFI services in that test use RAM mocks; this is a format/integration check,
+not physical compatibility evidence.
 
 Capture numbers/repeated values do not identify a machine. The comparator compares
 distinct observations per side, not boot history. It does not validate signatures or

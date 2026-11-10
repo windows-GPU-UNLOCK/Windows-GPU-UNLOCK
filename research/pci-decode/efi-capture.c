@@ -3,6 +3,11 @@
  * allocation, MMIO, PCI writes, logging, boot or device correction capability. */
 #include "efi-capture.h"
 #include "efi-path.h"
+#ifdef GU_DS_POST_STOP_CAPTURE
+#include "stop-transition.h"
+static GU_DS_SNAPSHOT ActiveBefore;
+typedef enum {CaptureOrdinary,CaptureMismatch,CaptureReleaseOrigin,CaptureIoMemAfterStop} CAPTURE_MODE;
+#endif
 
 typedef struct {
   EFI_BOOT_SERVICES *Boot;
@@ -74,10 +79,19 @@ static EFI_STATUS ReadOne(WORK *w,UINTN index,BOOLEAN first,GU_DS_DEVICE *out) {
   if(s!=EFI_SUCCESS || out->Supported==~0ULL || !Caps(w))return EFI_NOT_READY;
   return Resolve(w,index,FALSE);
 }
-EFI_STATUS GuDsEfiCapture(GU_DS_CAPTURE *c,EFI_BOOT_SERVICES *boot,const GU_DS_CAPTURE_TARGET *target) {
+static EFI_STATUS Capture(GU_DS_CAPTURE *c,EFI_BOOT_SERVICES *boot,const GU_DS_CAPTURE_TARGET *target
+#ifdef GU_DS_POST_STOP_CAPTURE
+  ,const GU_DS_SNAPSHOT *before,CAPTURE_MODE mode
+#endif
+) {
   if(!c || (boot && Overlap(c,sizeof(*c),boot,sizeof(*boot))) ||
      (target && Overlap(c,sizeof(*c),target,sizeof(*target))) ||
      (boot && target && Overlap(boot,sizeof(*boot),target,sizeof(*target))))return EFI_INVALID_PARAMETER;
+#ifdef GU_DS_POST_STOP_CAPTURE
+  if(before && (Overlap(before,sizeof(*before),c,sizeof(*c)) ||
+     (boot && Overlap(before,sizeof(*before),boot,sizeof(*boot))) ||
+     (target && Overlap(before,sizeof(*before),target,sizeof(*target)))))return EFI_INVALID_PARAMETER;
+#endif
   if(c->Used!=FALSE || ActiveBusy!=FALSE)return EFI_ALREADY_STARTED;
   ActiveBusy=TRUE;
   c->Used=TRUE;c->Busy=TRUE;c->Ready=FALSE;c->Count=0;
@@ -85,6 +99,17 @@ EFI_STATUS GuDsEfiCapture(GU_DS_CAPTURE *c,EFI_BOOT_SERVICES *boot,const GU_DS_C
   c->Snapshot=(GU_DS_SNAPSHOT){0};c->Status=EFI_INVALID_PARAMETER;
   EFI_STATUS s=EFI_INVALID_PARAMETER;WORK *w=&ActiveWork;GU_DS_SNAPSHOT *snapshots=ActiveSnapshots;UINTN parents=0;
   *w=(WORK){0};snapshots[0]=(GU_DS_SNAPSHOT){0};snapshots[1]=(GU_DS_SNAPSHOT){0};
+#ifdef GU_DS_POST_STOP_CAPTURE
+  if(before) {
+    ActiveBefore=*before;
+    if(mode==CaptureMismatch) {
+      if(!GuDecodeSnapshotValid(&ActiveBefore) || ActiveBefore.Gpu.Attributes!=(GU_DS_IO|GU_DS_MEMORY) ||
+         !(ActiveBefore.Gpu.Supported&GU_DS_MEMORY))goto done;
+    } else if(mode==CaptureIoMemAfterStop) {
+      if(GuDsIoMemStopTransition(&ActiveBefore,&ActiveBefore)!=GU_DS_STOP_UNCHANGED)goto done;
+    } else if(GuDsStopTransition(&ActiveBefore,&ActiveBefore)!=GU_DS_STOP_UNCHANGED)goto done;
+  }
+#endif
   if(!boot || !target || !boot->HandleProtocol || !boot->LocateDevicePath)goto done;
   w->Boot=boot;w->Handle=boot->HandleProtocol;w->Locate=boot->LocateDevicePath;w->Target=*target;
   if(!w->Target.Handle || w->Target.Segment>0xffffU || !w->Target.Bus || w->Target.Bus>255 ||
@@ -102,7 +127,20 @@ EFI_STATUS GuDsEfiCapture(GU_DS_CAPTURE *c,EFI_BOOT_SERVICES *boot,const GU_DS_C
     GU_DS_SNAPSHOT *v=&snapshots[pass];v->ParentCount=parents;
     for(UINTN i=0;i<w->Count;i++)if(ReadOne(w,i,pass==0,i?&v->Parents[i-1]:&v->Gpu)!=EFI_SUCCESS)goto done;
     v->Complete=TRUE;
-    if(!Caps(w) || !GuDecodeSnapshotValid(v))goto done;
+    if(!Caps(w))goto done;
+#ifdef GU_DS_POST_STOP_CAPTURE
+    if(before) {
+      if(mode==CaptureMismatch) {
+        GU_DS_RELEASE_PLAN plan;
+        if(!GuDsPlanReleasedMismatch(&ActiveBefore,v,&plan))goto done;
+      } else if(mode==CaptureIoMemAfterStop) {
+        if(GuDsIoMemStopTransition(&ActiveBefore,v)==GU_DS_STOP_REFUSED)goto done;
+      } else if(GuDsStopTransition(&ActiveBefore,v)==GU_DS_STOP_REFUSED)goto done;
+    } else if(mode==CaptureReleaseOrigin) {
+      if(!GuDsReleaseSnapshotValid(v))goto done;
+    } else
+#endif
+    if(!GuDecodeSnapshotValid(v))goto done;
   }
   if(!Caps(w) || !GuDecodeSnapshotMatches(&snapshots[1],&snapshots[0],FALSE))goto done;
   for(UINTN i=0;i<w->Count;i++)c->Bindings[i]=w->Devices[i].Pin;
@@ -115,3 +153,32 @@ done:
   }
   c->Used=TRUE;c->Busy=FALSE;c->Status=s;ActiveBusy=FALSE;return s;
 }
+
+EFI_STATUS GuDsEfiCapture(GU_DS_CAPTURE *c,EFI_BOOT_SERVICES *boot,const GU_DS_CAPTURE_TARGET *target) {
+  return Capture(c,boot,target
+#ifdef GU_DS_POST_STOP_CAPTURE
+    ,NULL,CaptureOrdinary
+#endif
+  );
+}
+#ifdef GU_DS_POST_STOP_CAPTURE
+EFI_STATUS GuDsEfiCaptureAfterStop(GU_DS_CAPTURE *c,EFI_BOOT_SERVICES *boot,
+  const GU_DS_CAPTURE_TARGET *target,const GU_DS_SNAPSHOT *before) {
+  if(!before)return EFI_INVALID_PARAMETER;
+  return Capture(c,boot,target,before,CaptureOrdinary);
+}
+EFI_STATUS GuDsEfiCaptureReleasedMismatch(GU_DS_CAPTURE *c,EFI_BOOT_SERVICES *boot,
+  const GU_DS_CAPTURE_TARGET *target,const GU_DS_SNAPSHOT *before) {
+  if(!before)return EFI_INVALID_PARAMETER;
+  return Capture(c,boot,target,before,CaptureMismatch);
+}
+EFI_STATUS GuDsEfiCaptureReleaseOrigin(GU_DS_CAPTURE *c,EFI_BOOT_SERVICES *boot,
+  const GU_DS_CAPTURE_TARGET *target) {
+  return Capture(c,boot,target,NULL,CaptureReleaseOrigin);
+}
+EFI_STATUS GuDsEfiCaptureIoMemAfterStop(GU_DS_CAPTURE *c,EFI_BOOT_SERVICES *boot,
+  const GU_DS_CAPTURE_TARGET *target,const GU_DS_SNAPSHOT *before) {
+  if(!before)return EFI_INVALID_PARAMETER;
+  return Capture(c,boot,target,before,CaptureIoMemAfterStop);
+}
+#endif

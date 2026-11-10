@@ -174,8 +174,13 @@ int GuDisplayPath(const EFI_DEVICE_PATH_PROTOCOL *Path, UINTN MaxBytes) {
   }
   if (Route == 1) {
     if (NodeLength(Bytes, MaxBytes) != sizeof(ACPI_ADR_DEVICE_PATH) ||
-        Bytes[0] != ACPI_DEVICE_PATH || Bytes[1] != ACPI_ADR_DP ||
-        Read32(Bytes + 4) != 0x80010300U) return 0;
+        Bytes[0] != ACPI_DEVICE_PATH || Bytes[1] != ACPI_ADR_DP) return 0;
+#if !defined(GU_PROFILE_B650M_3090FE) || defined(GU_HEADLESS_RESEARCH)
+    if (Read32(Bytes + 4) != 0x80010300U) return 0;
+#endif
+    /* On the original B650M, ADR selects the connected AMD output, not the
+     * GPU. The app independently verifies AMD PCI identity/BDF and pins this
+     * complete path for the run. Root/UID/PCI ancestry and node shape stay exact. */
     Bytes += sizeof(ACPI_ADR_DEVICE_PATH);
     MaxBytes -= sizeof(ACPI_ADR_DEVICE_PATH);
     if (NodeLength(Bytes, MaxBytes) != 4 || Bytes[0] != END_DEVICE_PATH_TYPE ||

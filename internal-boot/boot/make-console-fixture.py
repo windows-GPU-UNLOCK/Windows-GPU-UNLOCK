@@ -12,6 +12,9 @@ from pathlib import Path
 
 source = Path(sys.argv[1])
 single = '--single-rtx' in sys.argv[2:]
+amd_retained = '--amd-retained-multi' in sys.argv[2:]
+if amd_retained and single:
+    raise ValueError('AMD-retained replay must keep its AMD console')
 aggregate = '--aggregate' in sys.argv[2:]
 if aggregate and not single:
     raise ValueError('--aggregate requires --single-rtx')
@@ -70,7 +73,7 @@ roles = {
     'Rtx': one(lambda b: f'gop framebuffer={rtx_fb}' in b),
     'Amd': 0 if single else one(lambda b: 'gop framebuffer=0x000000fce0000000' in b),
 }
-if single:
+if single or amd_retained:
     child_records = [e for e in edges if e[0] == roles['RtxPci'] and str(e[3]) == '09576e91-6d3f-11d2-8e39-00a0c969723b' and e[4] == 8 and e[2] != roles['Rtx']]
     # Only non-aggregate firmware without an EDID driver admits up to three
     # siblings. Preserve the legacy exact-two-child option when not disabled.
@@ -120,7 +123,7 @@ for role, value in zip(['Console', 'Error', 'Input'], console.groups()):
 lines = [f'/* Local diagnostic sha256 {hashlib.sha256(raw).hexdigest()} */', f'#define FX_HANDLES {len(blocks)}',
          f'#define FX_NO_EDID_DRIVER {1 if no_edid_driver else 0}',
          f'#define FX_EXTRA_DISPLAY_CHILD {1 if roles.get("EdidChild") else 0}']
-if single:
+if single or amd_retained:
     if any(record[1]!=roles['NvAgent'] or record[5]!=1 for record in child_records):
         raise ValueError('Additional display child has an unreviewed NVIDIA owner/count')
     if no_edid_driver and any(EDID_DISCOVERED not in parsed[int(handle,16)]['protocols']
@@ -216,7 +219,7 @@ if aggregate:
     lines.append('static const UINT32 FixtureCold[9]={'+','.join(f'0x{cold[offset]:x}U' for offset in profile.COLD)+'};')
     lines.append('static const UINT32 FixtureColdOffsets[9]={'+','.join(f'0x{offset:x}U' for offset in profile.COLD)+'};')
 child_paths=[]
-for child in ([record[2] for record in child_records] if single else []):
+for child in ([record[2] for record in child_records] if single or amd_retained else []):
     child_key=next(h for h,index in indices.items() if index==child)
     child_block = blocks[child_key]
     if profile.GOP in parsed[int(child_key,16)]['protocols'] or profile.TEXT_OUT in parsed[int(child_key,16)]['protocols']:
@@ -229,8 +232,14 @@ for child in ([record[2] for record in child_records] if single else []):
     if child_path==primary_path or child_path in child_paths:
         raise ValueError('Additional display children require unique paths')
     child_paths.append(child_path)
-if single:
+if single or amd_retained:
     lines.append('#define FX_EXTRA_CHILD_PATHS {'+(','.join('{'+','.join(str(byte) for byte in path)+'}' for path in child_paths) or '{0}')+'}')
+if amd_retained:
+    amd_key=next(h for h,index in indices.items() if index==roles['Amd'])
+    amd_path=profile.path_of(blocks[amd_key])
+    if amd_path is None or len(amd_path)!=36:
+        raise ValueError('AMD replay requires its complete display path')
+    lines.append('#define FX_AMD_DISPLAY_PATH_BYTES '+','.join(str(byte) for byte in amd_path))
 if child_paths:
     lines.append('#define FX_EDID_CHILD_PATH_BYTES ' + ','.join(str(byte) for byte in child_paths[0]))
 for role, value in roles.items():

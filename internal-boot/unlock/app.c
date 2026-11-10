@@ -28,6 +28,14 @@ static EFI_SYSTEM_TABLE *Table;
 static UINT32 InitialConfig[64];
 static const char *Stage;
 static GU_RELEASE_OWNER PendingOwner;
+#if defined(GU_PROFILE_B650M_3090FE) && !defined(GU_HEADLESS_RESEARCH)
+static BOOLEAN AmdDisplayPathPinned;
+static UINT8 AmdDisplayPathPin[36];
+static BOOLEAN SameAmdDisplayPath(const VOID *path,const UINT8 *expected) {
+  const UINT8 *p=path;for(UINTN i=0;i<sizeof(AmdDisplayPathPin);i++)if(p[i]!=expected[i])return FALSE;
+  return TRUE;
+}
+#endif
 static EFI_STATUS Step(EFI_STATUS Status) {
   GuLog("CHECK stage=%s status=%#llx\n",Stage,(unsigned long long)Status);
 #ifdef GU_AUTOMATIC_BOOT
@@ -73,18 +81,22 @@ static BOOLEAN ConsoleGopCheck(EFI_GRAPHICS_OUTPUT_PROTOCOL *Gop,UINTN Index,
 }
 static BOOLEAN AmdGopParent(EFI_DEVICE_PATH_PROTOCOL *Path) {
   EFI_DEVICE_PATH_PROTOCOL *remaining=Path;EFI_HANDLE parent=NULL;
-  EFI_PCI_IO_PROTOCOL *pci=NULL;UINT32 id=0,subsystem=0;UINTN s,b,d,f;
+  EFI_PCI_IO_PROTOCOL *pci=NULL;UINT32 id=~0U,subsystem=~0U;UINTN s=~(UINTN)0,b=s,d=s,f=s;
   if(!Gu.bs->LocateDevicePath)return FALSE;
   EFI_STATUS status=Gu.bs->LocateDevicePath(&PciGuid,&remaining,&parent);
-  if(EFI_ERROR(status) || !parent || (UINT8 *)remaining!=(UINT8 *)Path+24)return FALSE;
+  if(status!=EFI_SUCCESS || !parent || (UINT8 *)remaining!=(UINT8 *)Path+24)return FALSE;
   status=Gu.bs->HandleProtocol(parent,&PciGuid,(VOID **)&pci);
-  if(EFI_ERROR(status) || !pci || !pci->GetLocation || !pci->Pci.Read)return FALSE;
-  status=pci->GetLocation(pci,&s,&b,&d,&f);
-  if(EFI_ERROR(status) || s || b!=12 || d || f)return FALSE;
-  status=pci->Pci.Read(pci,EfiPciIoWidthUint32,0,1,&id);
-  if(!EFI_ERROR(status))status=pci->Pci.Read(pci,EfiPciIoWidthUint32,0x2c,1,&subsystem);
+  if(status!=EFI_SUCCESS || !pci || !pci->GetLocation || !pci->Pci.Read)return FALSE;
+  EFI_PCI_IO_PROTOCOL_GET_LOCATION location=pci->GetLocation;
+  EFI_PCI_IO_PROTOCOL_CONFIG read=pci->Pci.Read;
+  status=location(pci,&s,&b,&d,&f);
+  if(status!=EFI_SUCCESS || s || b!=12 || d || f || pci->GetLocation!=location || pci->Pci.Read!=read)return FALSE;
+  status=read(pci,EfiPciIoWidthUint32,0,1,&id);
+  if(status==EFI_SUCCESS && pci->GetLocation==location && pci->Pci.Read==read)
+    status=read(pci,EfiPciIoWidthUint32,0x2c,1,&subsystem);
   GuLog("AMD GOP PCI parent: status=%#llx id=%#x subsystem=%#x\n",(unsigned long long)status,id,subsystem);
-  return !EFI_ERROR(status) && id==GU_AMD_ID && subsystem==GU_AMD_SUBSYSTEM;
+  return status==EFI_SUCCESS && pci->GetLocation==location && pci->Pci.Read==read &&
+    id==GU_AMD_ID && subsystem==GU_AMD_SUBSYSTEM;
 }
 #endif
 static BOOLEAN DisplayCheck(VOID) {
@@ -93,6 +105,9 @@ static BOOLEAN DisplayCheck(VOID) {
 #else
   EFI_HANDLE *handles=NULL;UINTN count=0,intel=0;BOOLEAN valid=TRUE;
   EFI_GRAPHICS_OUTPUT_MODE_INFORMATION physical={0},forwarded={0};BOOLEAN forwarding=FALSE;
+#ifdef GU_PROFILE_B650M_3090FE
+  UINT8 candidate[sizeof(AmdDisplayPathPin)]={0};const VOID *physicalPath=NULL;
+#endif
   EFI_STATUS status=Gu.bs->LocateHandleBuffer(ByProtocol,&GopGuid,NULL,&count,&handles);
   GuLog("GOP enumeration: status=%#llx handles=%zu\n",(unsigned long long)status,(size_t)count);
   if(EFI_ERROR(status) || !handles || !count || count>16){if(handles)GuFree(handles);return FALSE;}
@@ -125,6 +140,13 @@ static BOOLEAN DisplayCheck(VOID) {
     }
     if(!mode->Info || mode->SizeOfInfo<sizeof(*mode->Info)){valid=FALSE;break;}
     GopInfoLog(i,mode->Info);
+#ifdef GU_PROFILE_B650M_3090FE
+    if(route==1 && path) {
+      memcpy(candidate,path,sizeof(candidate));physicalPath=path;
+      if(GuDisplayPath((VOID *)candidate,sizeof(candidate))!=1 ||
+         (AmdDisplayPathPinned && !SameAmdDisplayPath(candidate,AmdDisplayPathPin))){valid=FALSE;break;}
+    }
+#endif
      if(EFI_ERROR(status) || !path || route!=1 || !AmdGopParent(path) || !mode->FrameBufferBase ||
        !mode->FrameBufferSize || mode->Info->PixelFormat>PixelBlueGreenRedReserved8BitPerColor ||
        !mode->Info->HorizontalResolution || !mode->Info->VerticalResolution ||
@@ -141,7 +163,14 @@ static BOOLEAN DisplayCheck(VOID) {
     GuLog("GOP console forwarded AMD match=%u\n",match);valid=valid && match;
   }
   GuFree(handles);GuLog("GOP result: valid=%u amd_physical=%zu\n",valid,(size_t)intel);
-  return valid && intel==1 && GuLogReady();
+  valid=valid && intel==1 && GuLogReady();
+#ifdef GU_PROFILE_B650M_3090FE
+  if(valid)valid=physicalPath && SameAmdDisplayPath(physicalPath,candidate);
+  if(valid && !AmdDisplayPathPinned) {
+    memcpy(AmdDisplayPathPin,candidate,sizeof(AmdDisplayPathPin));AmdDisplayPathPinned=TRUE;
+  }
+#endif
+  return valid;
 #endif
 }
 static EFI_STATUS ReadConfig(UINT32 *Config) {
@@ -415,6 +444,9 @@ static VOID ReleaseHalt(EFI_STATUS Status,BOOLEAN Attempted) {
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE Image,EFI_SYSTEM_TABLE *St) {
   if(!St || !St->BootServices || !St->RuntimeServices)return EFI_INVALID_PARAMETER;
   Table=St;GuInit(St->BootServices,NULL);Gu.image=Image;Gu.display_check=DisplayCheck;
+#if defined(GU_PROFILE_B650M_3090FE) && !defined(GU_HEADLESS_RESEARCH)
+  AmdDisplayPathPinned=FALSE;memset(AmdDisplayPathPin,0,sizeof(AmdDisplayPathPin));
+#endif
 #ifdef GU_HEADLESS_RESEARCH
   GuHeadlessReset(St);
 #endif
