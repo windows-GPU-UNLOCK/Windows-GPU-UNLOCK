@@ -6,13 +6,14 @@
 #if defined(GU_PROFILE_LOCAL) || defined(GU_PROFILE_PROBE_H610M_3060)
 #error Captured local and identity-only probe profiles must not inherit firmware templates
 #endif
-#if defined(GU_FIRMWARE_AMI_B650M_3057) || defined(GU_FIRMWARE_AMI_B660M_4003) || defined(GU_FIRMWARE_AMI_X870_F13D) || defined(GU_FIRMWARE_AMI_H610M_FC)
+#if defined(GU_FIRMWARE_AMI_B650M_3057) || defined(GU_FIRMWARE_AMI_B660M_4003) || defined(GU_FIRMWARE_AMI_X870_F13D) || defined(GU_FIRMWARE_AMI_H610M_FC) || defined(GU_FIRMWARE_AMI_MAXSUN_H78G)
 #error Firmware template selectors must come from firmware-profile.h
 #endif
 #define GU_FIRMWARE_AMI_B650M_3057 1U
 #define GU_FIRMWARE_AMI_B660M_4003 2U
 #define GU_FIRMWARE_AMI_X870_F13D 3U
 #define GU_FIRMWARE_AMI_H610M_FC 4U
+#define GU_FIRMWARE_AMI_MAXSUN_H78G 5U
 #ifndef GU_FIRMWARE_PROFILE
 #error Select an exact reviewed firmware template
 #endif
@@ -74,11 +75,35 @@
 #define GU_EDID_STOP 0x14d4U
 #define GU_EDID_TEXT_BYTES 0x3bb2U
 #define GU_EDID_TEXT_SHA256 "49fe68461765963d0b63144b0a7863f3b2db5926f1c988cbacc1e85ebe2b96f4"
+#elif GU_FIRMWARE_PROFILE == GU_FIRMWARE_AMI_MAXSUN_H78G
+/* Maxsun MS-Terminator B760M D4 BIOS H7.8G (AMI aggregate console, combo
+ * splitter + EDID runtime): hardware-verified on 2026-10-26. The console
+ * text-out driver has three per-boot binding instances with differing Stop
+ * offsets (0x104c/0x1644/0x1a74); the Agg-serving instance is pinned here and
+ * the release code compares its fingerprint without the Stop offset. */
+#define GU_CONSOLE_TEXT_SIZE 0x68e0U
+#define GU_CONSOLE_TEXT_STOP 0x1644U
+#define GU_CONSOLE_TEXT_VERSION 0x10U
+#define GU_CONSOLE_GFX_SIZE 0x3bc0U
+#define GU_CONSOLE_GFX_STOP 0xb2cU
+#define GU_CONSOLE_GFX_VERSION 0x10U
+#define GU_COMBO_SIZE 0x2180U
+#define GU_COMBO_STOP 0x88cU
+#define GU_COMBO_VERSION 0x11U
+#define GU_EDID_IMAGE_SIZE 0x9000U
+#define GU_EDID_STOP 0x14d4U
+#define GU_EDID_TEXT_BYTES 0x39faU
+#define GU_EDID_TEXT_SHA256 "bc3e3d5af8dbe6e685d5537c0d0667c0157f5555ae14c6e6e42ec1205342a583"
+#define GU_NVGOP_VERSION 0x6000aU
+#define GU_NVGOP_IMAGE_SIZE 0x2be40U
+#define GU_NVGOP_STOP 0x698U
+#define GU_NVGOP_TEXT_BYTES 0x24426U
+#define GU_NVGOP_TEXT_SHA256 "8924ba488419e5d82b524d10e8dd63bfe886f077026fae1a9cc03e25b920b276"
 #else
 #error No reviewed firmware template for this selection
 #endif
 
-#if GU_FIRMWARE_PROFILE != GU_FIRMWARE_AMI_B650M_3057
+#if GU_FIRMWARE_PROFILE != GU_FIRMWARE_AMI_B650M_3057 && GU_FIRMWARE_PROFILE != GU_FIRMWARE_AMI_MAXSUN_H78G
 /* These five fixed profiles pin the same nvgop code; LOCAL does not inherit it. */
 #define GU_NVGOP_VERSION 0x60010U
 #define GU_NVGOP_IMAGE_SIZE 0x26ae0U
