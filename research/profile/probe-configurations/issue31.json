@@ -1,0 +1,23 @@
+{
+  "SchemaVersion": 2,
+  "Id": "issue31",
+  "Scope": "pinned-read-only-resource-capture",
+  "Board": "PRIME X570-PRO",
+  "ManufacturerPrefix": "ASUSTeK",
+  "Bios": "5013",
+  "CpuToken": "5950X",
+  "TargetBus": 8,
+  "TargetDevice": "220410de",
+  "TargetSubsystem": "147d10de",
+  "OtherPciVendor": null,
+  "NonPci": [
+    {
+      "Enumerator": "LCI",
+      "Provider": "LuminonCore",
+      "Version": "1.0.2018.1204"
+    }
+  ],
+  "ManufacturerMatch": "prefix",
+  "OtherPciDevice": null,
+  "OtherPciSubsystem": null
+}
