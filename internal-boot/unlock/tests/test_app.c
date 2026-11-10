@@ -17,7 +17,7 @@
 #include <setjmp.h>
 enum app_case { APP_SUCCESS, APP_ESCAPE, APP_TIMEOUT, APP_OLD_KEY, APP_OWNER,
  APP_SECUREBOOT, APP_DUPLICATE, APP_BAD_BAR, APP_BAD_GOP, APP_RTX_GOP,
- APP_NO_USB, APP_SHORT_WRITE, APP_FLUSH, APP_BAD_SIZE, APP_BAD_HASH,
+ APP_NO_USB, APP_SHORT_WRITE, APP_FLUSH, APP_FLUSH_WARN, APP_BAD_SIZE, APP_BAD_HASH,
  APP_BAD_PROM, APP_WATCHDOG, APP_BME, APP_DIRTY, APP_UNMAP, APP_LOG_DIRTY,
  APP_CONFIG, APP_OWNER_RACE, APP_SELECTOR, APP_FINAL_LOG, APP_CLOSE, APP_BAR_MAX, APP_BAR_CHECKSUM,
  APP_EDK2_BAR, APP_BAD_ALIGNMENT, APP_ZERO_INFO, APP_QUERY_ERROR, APP_QUERY_SHORT,
@@ -38,7 +38,7 @@ enum app_case { APP_SUCCESS, APP_ESCAPE, APP_TIMEOUT, APP_OLD_KEY, APP_OWNER,
  APP_MASTER_ENABLE_ERROR, APP_MASTER_DISABLE_ERROR, APP_MASTER_ENABLE_ERROR_CLEAR_BAD, APP_COUNT };
 static const char *app_names[]={"success","escape","timeout","old-key","driver-owner",
  "secure-boot","duplicate-target","bad-bar","unknown-gop","rtx-gop","not-usb",
- "partial-report-write","report-flush","asset-size","asset-hash","prom-hash",
+ "partial-report-write","report-flush","report-flush-warn","asset-size","asset-hash","prom-hash",
  "watchdog","bme-readback","fwsec-timeout","unmap-failure","log-after-start","config-guard","owner-notify-race",
  "selector-lost","final-log-failure","report-close-failure","bar-max","bar-checksum","edk2-bar-alignment","bad-bar-alignment",
  "console-zero-info","console-query-error","console-query-short","console-query-null","console-query-rgb",
@@ -371,7 +371,10 @@ static EFI_STATUS EFIAPI file_write(EFI_FILE_PROTOCOL *f,UINTN *n,VOID *data) {
   report_bytes+=*n;report_text[report_bytes]=0;return EFI_SUCCESS;
 }
 static EFI_STATUS EFIAPI file_flush(EFI_FILE_PROTOCOL *f) {
-  CHECK(((FILE_FAKE *)f)->open);return app_mode==APP_FLUSH?EFI_DEVICE_ERROR:EFI_SUCCESS;
+  CHECK(((FILE_FAKE *)f)->open);
+  if(app_mode==APP_FLUSH)return EFI_DEVICE_ERROR;
+  if(app_mode==APP_FLUSH_WARN)return EFI_WARN_UNKNOWN_GLYPH;
+  return EFI_SUCCESS;
 }
 static EFI_STATUS EFIAPI volume(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *p,EFI_FILE_PROTOCOL **root) {
   CHECK(p==&fs);files[0].open=TRUE;*root=&files[0].protocol;return EFI_SUCCESS;

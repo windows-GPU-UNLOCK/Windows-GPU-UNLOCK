@@ -26,7 +26,14 @@ static void Damage(unsigned fault) {
     case 4:PhysicalMode.FrameBufferBase=0;break;
     case 5:DisplayPaths[0][17]^=1;break;
     case 6:Input.WaitForKey=NULL;break;
-    case 7:Live.Edges[0].Count++;break;
+    case 7:
+      for(UINTN i=0;i<Live.Count;i++) {
+        if(Live.Edges[i].Handle==H(PCI)) {
+          Live.Edges[i].Count++;
+          break;
+        }
+      }
+      break;
     case 8:Table.StandardErrorHandle=H(PCI);break;
     case 9:Edge(PRIMARY,OBSERVER,PRIMARY,&GopGuid,EFI_OPEN_PROTOCOL_BY_DRIVER);break;
     case 15:ParentDrift=TRUE;break;

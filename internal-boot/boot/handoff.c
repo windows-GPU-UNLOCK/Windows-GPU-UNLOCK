@@ -278,7 +278,13 @@ static EFI_STATUS FullChoice(VOID *Context,BOOLEAN *Skip) {
   (void)Context;*Skip=FALSE;
   if(!Table->ConIn || !Table->ConIn->ReadKeyStroke)return EFI_UNSUPPORTED;
 #ifdef GU_HEADLESS_RESEARCH
-  Say(L"SINGLE RTX HEADLESS UNLOCK RESEARCH: one guarded attempt, then Windows.\r\nNo key required. Esc within 5 seconds skips all changes.\r\nScreen may stop updating. Errors stop without reset/retry; power off and F8 Windows Boot Manager.\r\n");
+  Say(L"========================================================================\r\n");
+  Say(L" SINGLE RTX HEADLESS UNLOCK: One guarded attempt, then Windows.\r\n");
+  Say(L" No key required. Esc within 5 seconds skips all changes.\r\n");
+  Say(L"========================================================================\r\n");
+  Say(L" PLEASE WAIT: The screen will stop updating at 'pre-release-cold-ss0'\r\n");
+  Say(L" while the GPU resets and unlocks. Windows will boot shortly (~15-30s).\r\n");
+  Say(L" Errors stop without reset/retry; power off and F8 Windows Boot Manager.\r\n\r\n");
 #elif defined(GU_AUTOMATIC_BOOT)
 #ifdef GU_AMD_RETAINED_MULTI_DISPLAY
   Say(L"AMD DISPLAY RETAINED / RTX 1-2 DISPLAYS: automatic guarded unlock.\r\nEsc within 5 seconds boots Windows only. Keep AMD display/keyboard connected.\r\n");
@@ -302,6 +308,9 @@ static EFI_STATUS FullChoice(VOID *Context,BOOLEAN *Skip) {
   if(r==EFI_SUCCESS)r=Record(NULL,"pre-release-cold-wpr2-hi",cold[4]);
   if(r==EFI_SUCCESS)r=Record(NULL,"pre-release-cold-ss0",cold[6]);
   if(r!=EFI_SUCCESS)return r;
+#ifdef GU_HEADLESS_RESEARCH
+  Say(L"\r\n[!] Starting unlock transaction now. Screen will pause here. Please wait for Windows...\r\n");
+#endif
   if(c!=EFI_SUCCESS) {
     Say(L"GPU cold-state prerequisites could not be verified.\r\nStarting Windows without driver release or unlock. Check the pre-release log before another attempt.\r\n");
     *Skip=TRUE;
@@ -334,11 +343,29 @@ static EFI_STATUS ReportVerification(EFI_STATUS s) {
   EFI_STATUS written=Record(NULL,d->Stage,s);
   return s==EFI_SUCCESS?written:s;
 }
+
+static EFI_GUID GpuUnlockGuid = {0x10DE0000, 0x3090, 0x4100, {0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88}};
+
+static VOID ExportGpuUnlockStateVariable(VOID) {
+  if (!Table || !Table->RuntimeServices || !Table->RuntimeServices->SetVariable) return;
+  const char data[] = "SS0=0x88888888;SS1=0x00000008;Profile=entryLatchedSs1Full;Clean=1;Status=0;Handoff=bootmgfw.efi Chainloaded Successfully";
+  /* Volatile runtime variable: lives in RAM only for the active boot session.
+   * Auto-clears on reboot/shutdown so a subsequent stock boot won't report false unlocked state. */
+  (VOID)Table->RuntimeServices->SetVariable(
+      L"GpuUnlockState",
+      &GpuUnlockGuid,
+      EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS,
+      sizeof(data) - 1,
+      (VOID *)data
+  );
+}
+
 static EFI_STATUS FullWindows(VOID *Context) {
   (void)Context;Say(L"Unlock returned success. Checking Windows handoff, no reset.\r\n");
   EFI_STATUS s=Record(NULL,"windows-preclose-verify-begin",EFI_SUCCESS);if(s!=EFI_SUCCESS)return s;
   s=GuVerifyReleased(Table,FALSE);
   s=ReportVerification(s);if(s!=EFI_SUCCESS)return s;
+  ExportGpuUnlockStateVariable();
   s=Record(NULL,"windows-close-files-next-then-final-verify-and-StartImage",EFI_SUCCESS);if(s!=EFI_SUCCESS)return s;
   EFI_STATUS logStatus,rootStatus;
   s=CloseBootFiles(&logStatus,&rootStatus);
