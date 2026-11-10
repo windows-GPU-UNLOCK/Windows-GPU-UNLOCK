@@ -68,7 +68,7 @@ def main():
 
     headless = ['-DGU_HEADLESS_RESEARCH', '-DGU_SINGLE_RTX_CONSOLE', '-DGU_AUTOMATIC_BOOT']
     cases = [exercise('b650m', []), exercise('b650m-headless', headless)]
-    for profile in ['B660M_3070TI', 'B660M_3090TI', 'X870_3090TI', 'B660PLUS_3060', 'H610M_3060']:
+    for profile in ['Z690I_3090TI', 'B660M_3070TI', 'B660M_3090TI', 'X870_3090TI', 'B660PLUS_3060', 'H610M_3060']:
         cases.append(exercise(profile.lower(), ['-DGU_PROFILE_' + profile, *headless]))
     spec = importlib.util.spec_from_file_location('config_read_synthetic', ROOT / 'research/profile/test_local_topology.py')
     data = importlib.util.module_from_spec(spec)

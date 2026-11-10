@@ -18,10 +18,10 @@
 #error GPU family and firmware must be derived from the selected machine profile
 #endif
 
-#if (defined(GU_PROFILE_B650M_3090FE) + defined(GU_PROFILE_B660M_3070TI) + defined(GU_PROFILE_B660M_3090TI) + defined(GU_PROFILE_X870_3090TI) + defined(GU_PROFILE_B660PLUS_3060) + defined(GU_PROFILE_LOCAL) + defined(GU_PROFILE_H610M_3060) + defined(GU_PROFILE_PROBE_H610M_3060)) > 1
+#if (defined(GU_PROFILE_Z690I_3090TI) + defined(GU_PROFILE_B650M_3090FE) + defined(GU_PROFILE_B660M_3070TI) + defined(GU_PROFILE_B660M_3090TI) + defined(GU_PROFILE_X870_3090TI) + defined(GU_PROFILE_B660PLUS_3060) + defined(GU_PROFILE_LOCAL) + defined(GU_PROFILE_H610M_3060) + defined(GU_PROFILE_PROBE_H610M_3060)) > 1
 #error Select exactly one machine profile
 #endif
-#if !defined(GU_PROFILE_B650M_3090FE) && !defined(GU_PROFILE_B660M_3070TI) && !defined(GU_PROFILE_B660M_3090TI) && !defined(GU_PROFILE_X870_3090TI) && !defined(GU_PROFILE_B660PLUS_3060) && !defined(GU_PROFILE_LOCAL) && !defined(GU_PROFILE_H610M_3060) && !defined(GU_PROFILE_PROBE_H610M_3060)
+#if !defined(GU_PROFILE_Z690I_3090TI) && !defined(GU_PROFILE_B650M_3090FE) && !defined(GU_PROFILE_B660M_3070TI) && !defined(GU_PROFILE_B660M_3090TI) && !defined(GU_PROFILE_X870_3090TI) && !defined(GU_PROFILE_B660PLUS_3060) && !defined(GU_PROFILE_LOCAL) && !defined(GU_PROFILE_H610M_3060) && !defined(GU_PROFILE_PROBE_H610M_3060)
 #define GU_PROFILE_B650M_3090FE 1
 #endif
 
@@ -41,7 +41,7 @@
  * (aggregate GOP + text-out driver chain; verified on AMI boards without a
  * second display GPU). 0 = nvgop owns the console GOP on the target directly
  * (original verified B650M headless topology). */
-#if defined(GU_PROFILE_B660M_3070TI) || defined(GU_PROFILE_B660M_3090TI) || defined(GU_PROFILE_B660PLUS_3060)
+#if defined(GU_PROFILE_Z690I_3090TI) || defined(GU_PROFILE_B660M_3070TI) || defined(GU_PROFILE_B660M_3090TI) || defined(GU_PROFILE_B660PLUS_3060)
 #define GU_CONSOLE_AGGREGATE 1
 #elif !defined(GU_PROFILE_LOCAL)
 #define GU_CONSOLE_AGGREGATE 0
@@ -148,6 +148,27 @@
 #define GU_RTX_PATH_BYTES \
   2,1,12,0,0xd0,0x41,3,10,0,0,0,0,1,1,6,0,1,1,1,1,6,0,0,0,2,3,8,0,0,3,1,128,127,255,4,0
 #define GU_FIRMWARE_PROFILE GU_FIRMWARE_AMI_X870_F13D
+
+#elif defined(GU_PROFILE_Z690I_3090TI)
+
+/* ASUS ROG STRIX Z690-I GAMING WIFI BIOS 4601, i9-12900KS, UHD770
+ * present without a physical GOP, NVIDIA RTX 3090 Ti (GA102). Experimental:
+ * one successful cold USB unlock boot recorded on 2026-10-26. The AMI
+ * aggregate driver fingerprints match B660M; see evidence/z690i-3090ti-usb. */
+#define GU_PROFILE_NAME "ASUS-ROG-STRIX-Z690-I-4601-RTX3090TI"
+#define GU_BOARD_ID 0x220310deU
+#define GU_BOARD_SUBSYSTEM 0x161810deU
+#define GU_BAR0_BASE 0x76000000ULL
+#define GU_BAR0_END 0x76ffffffULL
+#define GU_DEVICE_MEMORY_SIZE 0x5ff4U
+#define GU_GPU_FAMILY GU_GPU_FAMILY_GA102
+#define GU_PROM_SHA256 "586baad14e09c28019499c7270aa608b878f8a87c457de13490fa7a855cfb30a"
+#define GU_ROOT_PORT_DEVICE 1U
+#define GU_ROOT_PORT_FUNCTION 0U
+/* 36-byte display device path: ACPI root, PciRoot(0), Pci(1,0), endpoint. */
+#define GU_RTX_PATH_BYTES \
+  2,1,12,0,0xd0,0x41,3,10,0,0,0,0,1,1,6,0,0,1,1,1,6,0,0,0,2,3,8,0,64,3,1,128,127,255,4,0
+#define GU_FIRMWARE_PROFILE GU_FIRMWARE_AMI_B660M_4003
 
 #elif defined(GU_PROFILE_B660M_3070TI)
 
