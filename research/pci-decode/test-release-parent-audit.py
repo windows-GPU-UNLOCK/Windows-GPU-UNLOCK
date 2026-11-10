@@ -207,7 +207,7 @@ def main():
             'skip-active-release-guard': (flow, 'ReleaseAudit.Active || ReleaseAudit.ReleaseUsed', 'ReleaseAudit.ReleaseUsed'),
             'skip-pre-nv-audit': (flow, 'if(s==EFI_SUCCESS)s=ReleaseAuditObserve(FALSE);', '(void)0;'),
             'skip-final-claim-graph': (flow,
-                'if(s==EFI_SUCCESS && !FullExpected(&claimGraph,4))s=EFI_NOT_READY;\n#ifdef GU_RELEASE_PARENT_AUDIT\n  if(s==EFI_SUCCESS && !ReleaseAuditBound())s=EFI_NOT_READY;\n  if(s==EFI_SUCCESS)s=AuditOwnershipEnable(needed);',
+                'if(s==EFI_SUCCESS && !FullExpected(&claimGraph,GU_STAGE_LAST))s=EFI_NOT_READY;\n#ifdef GU_RELEASE_PARENT_AUDIT\n  if(s==EFI_SUCCESS && !ReleaseAuditBound())s=EFI_NOT_READY;\n  if(s==EFI_SUCCESS)s=AuditOwnershipEnable(needed);',
                 'if(FALSE)s=EFI_NOT_READY;\n#ifdef GU_RELEASE_PARENT_AUDIT\n  if(s==EFI_SUCCESS && !ReleaseAuditBound())s=EFI_NOT_READY;\n  if(s==EFI_SUCCESS)s=AuditOwnershipEnable(needed);'),
         }
         if args.iomem:
