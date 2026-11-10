@@ -10,6 +10,7 @@ assets/
 usb-package/
 *.bin
 *.BIN
+!experimental/UNIVERSAL-ASSETS/*.bin
 *.obj
 *.exe
 *.dll
