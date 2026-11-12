@@ -21,11 +21,18 @@ Write-Output $inspect
 $runtime = $inspect | ConvertFrom-Json
 if (($runtime.benchmark_protocol -isnot [int] -and $runtime.benchmark_protocol -isnot [long]) -or $runtime.benchmark_protocol -ne 2 -or $runtime.tf32_allowed -isnot [bool] -or !$runtime.tf32_allowed) { throw 'Rebuild the benchmark: four-mode TF32 protocol is required' }
 if ($PreflightOnly) { Write-Output 'Preflight only: no GPU workload run'; exit 0 }
+# The single NVIDIA GPU may sit on any bus, but only at domain 0, device 00.0. The bus is taken
+# from nvidia-smi and every CUDA trial must report the same location.
+$busPattern = '^0+:[0-9A-Fa-f]{2}:00\.0$'
+function Get-PciKey([object]$Value) {
+    if ($Value -isnot [string] -or $Value -notmatch '^([0-9A-Fa-f]{1,8}):([0-9A-Fa-f]{2}):([0-9A-Fa-f]{2})\.([0-7])$') { throw 'Invalid PCI location' }
+    return (@(1..4 | ForEach-Object { [Convert]::ToUInt32($Matches[$_], 16) }) -join ':')
+}
 function Assert-GpuIdle {
     $rows = @(& nvidia-smi --query-gpu=name,pci.bus_id,driver_version,utilization.gpu,memory.used,temperature.gpu --format=csv,noheader,nounits)
     if ($LASTEXITCODE -ne 0 -or $rows.Count -ne 1) { throw 'Expected exactly one NVIDIA GPU' }
     $fields = $rows[0] -split ',' | ForEach-Object { $_.Trim() }
-    if ($fields[0] -ne $gpuName -or $fields[1] -notmatch '^0+:01:00\.0$') { throw 'Unexpected GPU identity' }
+    if ($fields[0] -ne $gpuName -or $fields[1] -notmatch $busPattern) { throw 'Unexpected GPU identity' }
     if ([int]$fields[3] -gt 5 -or [int]$fields[4] -gt 2048) { throw 'GPU is busy. Save and finish ComfyUI/other GPU jobs before benchmarking. Nothing was stopped.' }
     if ([int]$fields[5] -gt 65) { throw 'GPU is still hot. Let it cool before a comparable measurement.' }
     return $rows[0]
@@ -34,11 +41,13 @@ function Get-ComparisonSettings {
     $rows = @(& nvidia-smi --query-gpu=name,pci.bus_id,driver_version,power.limit,clocks.max.sm,clocks.max.memory --format=csv,noheader,nounits)
     if ($LASTEXITCODE -ne 0 -or $rows.Count -ne 1) { throw 'Could not capture comparison settings' }
     $fields = @($rows[0] -split ',' | ForEach-Object { $_.Trim() })
-    if ($fields.Count -ne 6 -or $fields[0] -ne $gpuName -or $fields[1] -notmatch '^0+:01:00\.0$') { throw 'Unexpected comparison GPU identity' }
+    if ($fields.Count -ne 6 -or $fields[0] -ne $gpuName -or $fields[1] -notmatch $busPattern) { throw 'Unexpected comparison GPU identity' }
     return $fields
 }
 $initialState = Assert-GpuIdle
 $settings = @(Get-ComparisonSettings)
+$gpuPci = Get-PciKey $settings[1]
+if ((Get-PciKey (($initialState -split ',')[1].Trim())) -ne $gpuPci) { throw 'GPU location changed between nvidia-smi queries' }
 $resultRoot = Join-Path $root ('results\' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
 if (Test-Path -LiteralPath $resultRoot) { throw 'Result directory exists' }
 New-Item -ItemType Directory -Path $resultRoot | Out-Null
@@ -60,6 +69,7 @@ for ($trial = 1; $trial -le 3; $trial++) {
     $parsed = $json | ConvertFrom-Json
     if ($parsed.gpu -ne $gpuName -or $parsed.cuda_runtime -ne 12060 -or $parsed.cublas -ne 120600 -or $parsed.benchmarks.Count -ne 4 -or
         ($parsed.benchmark_protocol -isnot [int] -and $parsed.benchmark_protocol -isnot [long]) -or $parsed.benchmark_protocol -ne 2 -or $parsed.tf32_allowed -isnot [bool] -or !$parsed.tf32_allowed) { throw 'Unexpected benchmark metadata' }
+    if ((Get-PciKey $parsed.pci) -ne $gpuPci) { throw 'Benchmark GPU location differs from nvidia-smi' }
     foreach ($name in $benchmarkNames) {
         $matched = @($parsed.benchmarks | Where-Object name -CEQ $name)
         if ($matched.Count -ne 1 -or $matched[0].reference_checked -isnot [bool] -or !$matched[0].reference_checked) { throw 'Missing, duplicate or unchecked benchmark mode' }

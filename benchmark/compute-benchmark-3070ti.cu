@@ -63,11 +63,11 @@ int main(int argc, char **argv) {
   if(!tf32Allowed){fprintf(stderr,"Unset NVIDIA_TF32_OVERRIDE before running the four-mode benchmark\n");return 2;}
   int devices=0;cuda_check(cudaGetDeviceCount(&devices));int selected=-1;cudaDeviceProp properties={};
   for(int i=0;i<devices;i++) {cudaDeviceProp p;cuda_check(cudaGetDeviceProperties(&p,i));
-    if(!strcmp(p.name,"NVIDIA GeForce RTX 3070 Ti") && !p.pciDomainID && p.pciBusID==1 && !p.pciDeviceID){if(selected!=-1)return 2;selected=i;properties=p;}}
-  if(selected<0){fprintf(stderr,"Exact RTX 3070 Ti at 0000:01:00.0 not found\n");return 2;}
+    if(!strcmp(p.name,"NVIDIA GeForce RTX 3070 Ti") && !p.pciDomainID && !p.pciDeviceID){if(selected!=-1)return 2;selected=i;properties=p;}}
+  if(selected<0){fprintf(stderr,"Exact RTX 3070 Ti at 0000:xx:00.0 not found\n");return 2;}
   cuda_check(cudaSetDevice(selected));cublasHandle_t handle;blas_check(cublasCreate(&handle));
   int runtime=0,driver=0,blas=0;cuda_check(cudaRuntimeGetVersion(&runtime));cuda_check(cudaDriverGetVersion(&driver));blas_check(cublasGetVersion(handle,&blas));
-  printf("{\"benchmark_protocol\":2,\"tf32_allowed\":true,\"gpu\":\"%s\",\"pci\":\"0000:01:00.0\",\"compute_capability\":\"%d.%d\",\"cuda_runtime\":%d,\"cuda_driver_api\":%d,\"cublas\":%d,\"benchmarks\":[",properties.name,properties.major,properties.minor,runtime,driver,blas);
+  printf("{\"benchmark_protocol\":2,\"tf32_allowed\":true,\"gpu\":\"%s\",\"pci\":\"%04x:%02x:%02x.0\",\"compute_capability\":\"%d.%d\",\"cuda_runtime\":%d,\"cuda_driver_api\":%d,\"cublas\":%d,\"benchmarks\":[",properties.name,properties.pciDomainID,properties.pciBusID,properties.pciDeviceID,properties.major,properties.minor,runtime,driver,blas);
   for(int kind=0;kind<4;kind++)measure(handle,kind);
   blas_check(cublasDestroy(handle));puts("]}");return 0;
 }

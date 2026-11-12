@@ -35,8 +35,9 @@ policy, not a measured hardware unlock state.
 
 Select the RTX 3090 (default), RTX 3090 Ti or RTX 3070 Ti with
 `-Card 3090|3090ti|3070ti` when building and running. Each binary requires its named
-GPU at PCI `0000:01:00.0`; this is a measurement target, not an EFI compatibility
-verdict. Result checking remains limited to the first and last output elements,
+GPU to be the only NVIDIA GPU, at PCI `0000:<bus>:00.0` on any bus; the location CUDA
+reports must match `nvidia-smi` in every trial. This is a measurement target, not an
+EFI compatibility verdict. Result checking remains limited to the first and last output elements,
 as in upstream.
 
 The setup script downloads CUDA 12.6 redistributables from NVIDIA's official server, verifies sizes/hashes and prepares them within the project. It does not change the driver, ComfyUI or system PATH. Downloads and disk space are required.

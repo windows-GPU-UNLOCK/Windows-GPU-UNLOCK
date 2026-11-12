@@ -1,5 +1,21 @@
 # Changes
 
+## Unreleased — benchmark accepts the GPU on any PCI bus
+
+- Completes the benchmark bus change deferred in b18dd91. The native benchmarks still
+  require exactly one card with the selected name at domain 0, device `00.0`, but no
+  longer require bus `01`, and they print the PCI location CUDA reports instead of a
+  fixed `0000:01:00.0`. Reported in the issue #368 follow-up (RTX 3090 FE on bus 02).
+- `run-benchmark.ps1` takes the bus from `nvidia-smi` (still exactly one NVIDIA GPU),
+  refuses a location change between its two queries, and refuses any trial whose
+  `pci` is missing or differs from that location. `compare_results.py` already binds
+  trial `pci` to the recorded settings, so a run on bus 02 cannot be compared with a
+  run on bus 01.
+- Host tests: runner scenarios for bus 02 success, trial PCI mismatch/missing and a
+  settings-query bus change; comparison tests for bus 02 pairs, a bus change between
+  runs and a trial PCI change. Executables built earlier still require bus `01`;
+  rebuild to pick this up. No GPU, CUDA build or hardware run was involved.
+
 ## Unreleased — preserve captured state in host qualification fixtures
 
 - Initialize the app mock's PCI attributes from its captured command, including

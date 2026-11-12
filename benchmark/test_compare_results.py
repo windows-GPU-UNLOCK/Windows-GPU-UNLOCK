@@ -25,7 +25,7 @@ def seal(directory):
 
 
 def fixture(directory, ratios=None, gpu='NVIDIA GeForce RTX 3090', card='3090',
-            four_modes=False):
+            four_modes=False, bus='01'):
     names = NAMES if four_modes else LEGACY_NAMES
     ratios = (1,) * len(names) if ratios is None else ratios
     assert len(ratios) == len(names), 'Fixture must provide every benchmark mode'
@@ -36,7 +36,7 @@ def fixture(directory, ratios=None, gpu='NVIDIA GeForce RTX 3090', card='3090',
                       {'Path': r'bin\cublas64_12.dll', 'SHA256': 'b' * 64}],
         'runtime': {'cuda_runtime': 12060, 'cublas_major': 12, 'cublas_minor': 6,
                     'cublas_patch': 0, 'gpu_workload_run': False},
-        'gpu_settings': [gpu, '00000000:01:00.0',
+        'gpu_settings': [gpu, f'00000000:{bus}:00.0',
                          '617.14', '350.00', '2100', '9751']}
     write_json(directory / 'comparison-context.json', context)
     if four_modes:
@@ -45,7 +45,7 @@ def fixture(directory, ratios=None, gpu='NVIDIA GeForce RTX 3090', card='3090',
         context['runtime'].update(benchmark_protocol=2, tf32_allowed=True)
         write_json(directory / 'comparison-context.json', context)
     for trial_index in range(1, 4):
-        trial = {'gpu': gpu, 'pci': '0000:01:00.0',
+        trial = {'gpu': gpu, 'pci': f'0000:{bus}:00.0',
                  'compute_capability': '8.6', 'cuda_runtime': 12060,
                  'cuda_driver_api': 13000, 'cublas': 120600, 'benchmarks': []}
         if four_modes:
@@ -280,6 +280,24 @@ class ComparisonTests(unittest.TestCase):
     def test_duplicate_benchmark_refused(self):
         self.mutate('trial-1.json', lambda t: t['benchmarks'].__setitem__(1, t['benchmarks'][0]))
         with self.assertRaisesRegex(ValueError, 'duplicate benchmark'):
+            self.compare()
+
+    def test_non_01_bus_runs_compare(self):
+        root = Path(self.temp.name)
+        fixture(root / 'bus2-before', four_modes=True, bus='02')
+        fixture(root / 'bus2-after', (1, 1.8, 1.8, 1.8), four_modes=True, bus='02')
+        result = compare(root / 'bus2-before', root / 'bus2-after', same_machine_confirmed=True)
+        self.assertAlmostEqual(result['benchmarks'][1]['ratio'], 1.8)
+
+    def test_bus_change_between_runs_refused(self):
+        root = Path(self.temp.name)
+        fixture(root / 'bus2-after', (1.01, 1.65, 1.65), bus='02')
+        with self.assertRaisesRegex(ValueError, 'GPU settings differ'):
+            compare(self.before, root / 'bus2-after', same_machine_confirmed=True)
+
+    def test_trial_pci_must_match_recorded_bus(self):
+        self.mutate('trial-2.json', lambda t: t.__setitem__('pci', '0000:02:00.0'))
+        with self.assertRaisesRegex(ValueError, 'changed between trials'):
             self.compare()
 
     def test_trial_metadata_change_refused(self):
