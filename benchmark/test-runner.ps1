@@ -33,11 +33,13 @@ function nvidia-smi {
         $power = '350.00'
         if ($global:GpuUnlockRunnerTestState.Scenario -eq 'settings-change' -and $global:GpuUnlockRunnerTestState.SettingsCalls -gt 1) { $power = '300.00' }
         if ($global:GpuUnlockRunnerTestState.Scenario -eq 'wrong-settings-gpu') { $gpu = 'NVIDIA GeForce RTX 4090' }
-        return "$gpu, 00000000:01:00.0, 617.14, $power, 2100, 9751"
+        $bus = $global:GpuUnlockRunnerTestState.Bus
+        if ($global:GpuUnlockRunnerTestState.Scenario -eq 'settings-bus-change') { $bus = '03' }
+        return "$gpu, 00000000:${bus}:00.0, 617.14, $power, 2100, 9751"
     }
     if ($query -like '*utilization.gpu*') {
         if ($global:GpuUnlockRunnerTestState.Scenario -eq 'wrong-gpu') { $gpu = 'NVIDIA GeForce RTX 4090' }
-        return "$gpu, 00000000:01:00.0, 617.14, 0, 100, 40"
+        return "$gpu, 00000000:$($global:GpuUnlockRunnerTestState.Bus):00.0, 617.14, 0, 100, 40"
     }
     if ($global:GpuUnlockRunnerTestState.Scenario -eq 'telemetry-failure') { throw 'Synthetic telemetry failure' }
     return 'synthetic telemetry'
@@ -49,7 +51,7 @@ try {
     }
     $cards = @{'3090'='NVIDIA GeForce RTX 3090';'3090ti'='NVIDIA GeForce RTX 3090 Ti';'3070ti'='NVIDIA GeForce RTX 3070 Ti'}
     foreach ($card in @('3090','3090ti','3070ti')) {
-    foreach ($scenario in @('preflight','success','telemetry-failure','settings-change','wrong-gpu','wrong-settings-gpu','missing-selected-hash','duplicate-selected-hash',
+    foreach ($scenario in @('preflight','success','success-bus-02','trial-pci-mismatch','trial-pci-missing','settings-bus-change','telemetry-failure','settings-change','wrong-gpu','wrong-settings-gpu','missing-selected-hash','duplicate-selected-hash',
         'override-blocked','override-other-blocked','old-inspect','inspect-flag-string','inspect-flag-false','inspect-protocol-string',
         'missing-tf32','duplicate-mode','trial-flag-false','trial-flag-string','trial-flag-missing','trial-protocol-string')) {
         $env:NVIDIA_TF32_OVERRIDE = $null
@@ -64,15 +66,19 @@ try {
         $env:GPU_UNLOCK_TEST_INSPECT = $inspection | ConvertTo-Json -Compress
         $global:GpuUnlockRunnerTestState.Scenario = $scenario
         $global:GpuUnlockRunnerTestState.Gpu = $cards[$card]
+        # Many AM4/Z590 boards put the x16 slot on bus 02 (issue #368 follow-up).
+        $global:GpuUnlockRunnerTestState.Bus = $(if ($scenario -eq 'success-bus-02') { '02' } else { '01' })
         $global:GpuUnlockRunnerTestState.Calls = 0
         $global:GpuUnlockRunnerTestState.SettingsCalls = 0
-        $trialRecord = [pscustomobject]@{benchmark_protocol=2;tf32_allowed=$true;gpu=$cards[$card];pci='0000:01:00.0';compute_capability='8.6';cuda_runtime=12060;cuda_driver_api=13000;cublas=120600;benchmarks=@($benchmarks)}
+        $trialRecord = [pscustomobject]@{benchmark_protocol=2;tf32_allowed=$true;gpu=$cards[$card];pci="0000:$($global:GpuUnlockRunnerTestState.Bus):00.0";compute_capability='8.6';cuda_runtime=12060;cuda_driver_api=13000;cublas=120600;benchmarks=@($benchmarks)}
         if ($scenario -eq 'missing-tf32') { $trialRecord.benchmarks = @($benchmarks | Select-Object -First 3) }
         if ($scenario -eq 'duplicate-mode') { $trialRecord.benchmarks = @($benchmarks[0],$benchmarks[1],$benchmarks[2],$benchmarks[0]) }
         if ($scenario -eq 'trial-flag-false') { $trialRecord.tf32_allowed = $false }
         if ($scenario -eq 'trial-flag-string') { $trialRecord.tf32_allowed = 'true' }
         if ($scenario -eq 'trial-flag-missing') { $trialRecord.PSObject.Properties.Remove('tf32_allowed') }
         if ($scenario -eq 'trial-protocol-string') { $trialRecord.benchmark_protocol = '2' }
+        if ($scenario -eq 'trial-pci-mismatch') { $trialRecord.pci = '0000:02:00.0' }
+        if ($scenario -eq 'trial-pci-missing') { $trialRecord.PSObject.Properties.Remove('pci') }
         $env:GPU_UNLOCK_TEST_TRIAL = $trialRecord | ConvertTo-Json -Depth 5 -Compress
         $caseRoot = Join-Path $testRoot "$card-$scenario"
         New-Item -ItemType Directory -Path (Join-Path $caseRoot 'bin') | Out-Null
@@ -96,11 +102,11 @@ try {
             else { & (Join-Path $caseRoot 'run-benchmark.ps1') @cardArguments | Out-Null }
         } catch {
             $failed = $true
-            if ($scenario -in @('preflight','success')) { throw }
+            if ($scenario -in @('preflight','success','success-bus-02')) { throw }
         }
         if ($scenario -eq 'preflight') {
             if ($global:GpuUnlockRunnerTestState.Calls -ne 0 -or (Test-Path (Join-Path $caseRoot 'results'))) { throw 'Preflight touched GPU queries or results' }
-        } elseif ($scenario -eq 'success') {
+        } elseif ($scenario -in @('success','success-bus-02')) {
             if ($failed) { throw 'Synthetic success failed' }
             $result = @(Get-ChildItem -LiteralPath (Join-Path $caseRoot 'results') -Directory)
             if ($result.Count -ne 1) { throw 'Expected one result directory' }
