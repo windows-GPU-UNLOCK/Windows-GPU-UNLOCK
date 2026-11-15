@@ -11,7 +11,7 @@ static UINT8 config[256];
 static UINT32 registers[0x1000000/4];
 static struct {
   UINTN allocs, frees, maps, unmaps, writes, pciwrites, pcireads, reads, delay;
-  int alloc_fail, map_fail, short_map, high_map, unaligned_map, unmap_fail, free_fail;
+  int exact_dma, alloc_fail, map_fail, short_map, high_map, unaligned_map, unmap_fail, free_fail;
   int mem_fail, config_fail, lost_after_flr, flr_seen, config_too_early, flr_write_error;
   UINT64 next_dma;
 } fake;
@@ -23,7 +23,15 @@ static EFI_STATUS EFIAPI allocate(EFI_PCI_IO_PROTOCOL *P, EFI_ALLOCATE_TYPE T,
  EFI_MEMORY_TYPE M, UINTN N, VOID **C, UINT64 A) {
   (void)P;(void)T;(void)M;assert(!A); fake.allocs++;
   if(fake.alloc_fail)return EFI_OUT_OF_RESOURCES;
-  *C=_aligned_malloc(N*4096,4096);return *C?EFI_SUCCESS:EFI_OUT_OF_RESOURCES;
+  *C=_aligned_malloc(N*4096,4096);
+  if(*C && fake.exact_dma && (UINT64)(UINTN)*C==fake.next_dma) {
+    /* Exact-boundary tests must move the CPU buffer, not the device address.
+     * Keep the colliding allocation live so its replacement cannot reuse it. */
+    VOID *collision=*C;
+    *C=_aligned_malloc(N*4096,4096);
+    _aligned_free(collision);
+  }
+  return *C?EFI_SUCCESS:EFI_OUT_OF_RESOURCES;
 }
 static EFI_STATUS EFIAPI freebuffer(EFI_PCI_IO_PROTOCOL *P, UINTN N, VOID *C) {
   (void)P;assert(N);fake.frees++;if(fake.free_fail)return EFI_DEVICE_ERROR;
@@ -112,6 +120,16 @@ int main(void) {
   assert(cpu && dma==0x12000000 && dma!=(UINTN)cpu && fake.maps==1);
   for(UINTN i=0;i<15*4096;i++)assert(((UINT8 *)cpu)[i]==0);
   assert(!EFI_ERROR(GuDmaFree(cpu,dma)) && fake.unmaps==1 && fake.frees==1);
+  /* A CPU allocation address is not the device DMA address. Exercise the
+   * actual rounded buffer end at the 32-bit device-address boundary. */
+  setup();fake.exact_dma=1;fake.next_dma=0xfffff000ULL;
+  assert(!EFI_ERROR(GuDmaAllocate(4096,&cpu,&dma)) && dma==0xfffff000ULL);
+  assert(cpu && dma!=(UINT64)(UINTN)cpu);
+  assert(!EFI_ERROR(GuDmaFree(cpu,dma)) && fake.unmaps==1 && fake.frees==1);
+  setup();fake.exact_dma=1;fake.next_dma=0xfffff000ULL;cpu=NULL;dma=0;
+  assert(EFI_ERROR(GuDmaAllocate(4097,&cpu,&dma)) && !cpu && !dma);
+  assert(fake.maps==1 && fake.unmaps==1 && fake.frees==1 && !Gu.allocations);
+  assert(!fake.writes && !fake.pciwrites && !fake.reads);
   for(int mode=0;mode<5;mode++) {
     setup();fake.alloc_fail=mode==0;fake.map_fail=mode==1;fake.short_map=mode==2;
     fake.high_map=mode==3;fake.unaligned_map=mode==4;cpu=NULL;dma=0;
@@ -134,13 +152,25 @@ int main(void) {
   assert(EFI_ERROR(GuDmaFree(cpu,dma)) && Gu.retained && Gu.allocations && !Gu.allocations->mapped);
   fake.free_fail=0;assert(EFI_ERROR(GuDmaFree(cpu,dma)) && fake.frees==1);
   Gu.retained=FALSE;assert(!EFI_ERROR(GuDmaFree(cpu,dma)));
-  for(int mode=0;mode<2;mode++) {
-    setup();fake.short_map=1;fake.unmap_fail=!mode;fake.free_fail=mode;
+  /* Invalid successful mappings must retain uncertain resources on cleanup
+   * failure. Re-entry cannot turn a failure into permission to free/retry. */
+  for(int invalid=0;invalid<3;invalid++)for(int mode=0;mode<2;mode++) {
+    setup();fake.short_map=invalid==0;fake.high_map=invalid==1;
+    fake.unaligned_map=invalid==2;fake.unmap_fail=!mode;fake.free_fail=mode;
     assert(EFI_ERROR(GuDmaAllocate(8192,&cpu,&dma)) && !cpu && !dma);
     assert(Gu.retained && Gu.allocations && !GuSafeToReturn());
     assert(Gu.allocations->mapped==!mode);
     assert(fake.unmaps==1 && fake.frees==(UINTN)mode);
+    GU_DMA *retained=Gu.allocations;
+    UINTN maps=fake.maps,unmaps=fake.unmaps,frees=fake.frees;
+    VOID *retry_cpu=(VOID *)(UINTN)1;UINT64 retry_dma=1;
+    assert(EFI_ERROR(GuDmaAllocate(4096,&retry_cpu,&retry_dma)));
+    assert(!retry_cpu && !retry_dma && Gu.allocations==retained && Gu.retained);
+    assert(EFI_ERROR(GuDmaFree(retained->cpu,retained->dma)));
+    assert(fake.maps==maps && fake.unmaps==unmaps && fake.frees==frees);
+    assert(!fake.writes && !fake.pciwrites && !fake.reads);
     cpu=Gu.allocations->cpu;dma=Gu.allocations->dma;
+    /* Test disposal only, never an authorized production retry. */
     fake.unmap_fail=fake.free_fail=0;Gu.retained=FALSE;
     assert(!EFI_ERROR(GuDmaFree(cpu,dma)));
   }
