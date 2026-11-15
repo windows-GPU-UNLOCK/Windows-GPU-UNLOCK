@@ -4,8 +4,10 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
+import prepare_usb
 from prepare_usb import prepare
 
 
@@ -93,6 +95,97 @@ class PackagingTests(unittest.TestCase):
     def test_path_traversal_rejected(self):
         self.write('SOURCE-MANIFEST.json', {'files': [{'path': '../escape', 'bytes': 0, 'sha256': ''}]})
         with self.assertRaises(ValueError):
+            prepare(self.root, self.assets, self.output)
+        self.assertFalse(self.output.exists())
+
+    def test_asset_changed_after_validation_is_rejected_against_original_pin(self):
+        real_copy = prepare_usb.shutil.copyfile
+        target = self.assets / 'asset0.bin'
+        for changed in (b'\xff', b'changed after validation'):
+            with self.subTest(changed=changed):
+                target.write_bytes(b'\x00')
+                output = self.base / f'output-{len(changed)}'
+
+                def mutate_then_copy(source, destination, *args, **kwargs):
+                    if Path(source) == target:
+                        target.write_bytes(changed)
+                    return real_copy(source, destination, *args, **kwargs)
+
+                with patch.object(prepare_usb.shutil, 'copyfile', side_effect=mutate_then_copy):
+                    with self.assertRaisesRegex(ValueError, 'Asset changed during copy'):
+                        prepare(self.root, self.assets, output)
+                self.assertFalse(output.exists())
+                self.assertEqual(list(self.base.glob('.gpu-unlock-stage-*')), [])
+
+    def test_untracked_documentation_and_licenses_are_not_packaged(self):
+        for name in ('docs/private-notes.txt', 'docs/local/private.txt', 'LICENSES/untracked.txt'):
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b'PRIVATE LOCAL NOTES')
+        prepare(self.root, self.assets, self.output)
+        payload = self.output / 'RTX3090-UNLOCK'
+        for name in ('docs/private-notes.txt', 'docs/local/private.txt', 'LICENSES/untracked.txt'):
+            self.assertFalse((payload / name).exists())
+        with zipfile.ZipFile(payload / 'SOURCE.zip') as archive:
+            self.assertFalse(any('private' in name or 'untracked' in name for name in archive.namelist()))
+
+    def test_zip_uses_verified_bytes_instead_of_reopening_source_paths(self):
+        real_write = zipfile.ZipFile.write
+        target = self.root / 'unlock/app.c'
+
+        def mutate_then_archive(archive, filename, *args, **kwargs):
+            if Path(filename) == target:
+                target.write_bytes(b'changed after source check')
+            return real_write(archive, filename, *args, **kwargs)
+
+        with patch.object(zipfile.ZipFile, 'write', autospec=True, side_effect=mutate_then_archive):
+            prepare(self.root, self.assets, self.output)
+        with zipfile.ZipFile(self.output / 'RTX3090-UNLOCK/SOURCE.zip') as archive:
+            self.assertEqual(archive.read('unlock/app.c'), b'fake source')
+
+    def test_original_manifest_snapshot_is_preserved(self):
+        target = self.root / 'SOURCE-MANIFEST.json'
+        original = target.read_bytes()
+        real_copy = prepare_usb.shutil.copyfile
+
+        def mutate_then_copy(source, destination, *args, **kwargs):
+            target.write_bytes(b'{"files":[]}')
+            return real_copy(source, destination, *args, **kwargs)
+
+        with patch.object(prepare_usb.shutil, 'copyfile', side_effect=mutate_then_copy):
+            prepare(self.root, self.assets, self.output)
+        self.assertNotEqual(target.read_bytes(), original)
+        with zipfile.ZipFile(self.output / 'RTX3090-UNLOCK/SOURCE.zip') as archive:
+            self.assertEqual(archive.read('SOURCE-MANIFEST.json'), original)
+            manifest = json.loads(archive.read('SOURCE-MANIFEST.json'))
+            for entry in manifest['files']:
+                data = archive.read(entry['path'])
+                self.assertEqual(len(data), entry['bytes'])
+                self.assertEqual(self.hash(data), entry['sha256'])
+
+    def test_late_source_or_document_change_cleans_staging(self):
+        real_copy = prepare_usb.shutil.copyfile
+        for name in ('unlock/app.c', 'docs/GUIDE.en.md', 'LICENSES/notice.txt'):
+            with self.subTest(name=name):
+                target = self.root / name
+                original = target.read_bytes()
+
+                def mutate_then_copy(source, destination, *args, **kwargs):
+                    target.write_bytes(b'changed after validation')
+                    return real_copy(source, destination, *args, **kwargs)
+
+                with patch.object(prepare_usb.shutil, 'copyfile', side_effect=mutate_then_copy):
+                    with self.assertRaisesRegex(ValueError, 'Source changed during packaging'):
+                        prepare(self.root, self.assets, self.output)
+                self.assertFalse(self.output.exists())
+                self.assertEqual(list(self.base.glob('.gpu-unlock-stage-*')), [])
+                target.write_bytes(original)
+
+    def test_required_docs_must_be_manifested_not_just_present(self):
+        manifest = json.loads((self.root / 'SOURCE-MANIFEST.json').read_text())
+        manifest['files'] = [entry for entry in manifest['files'] if entry['path'] != 'docs/GUIDE.en.md']
+        self.write('SOURCE-MANIFEST.json', manifest)
+        with self.assertRaisesRegex(ValueError, 'not in the source manifest'):
             prepare(self.root, self.assets, self.output)
         self.assertFalse(self.output.exists())
 

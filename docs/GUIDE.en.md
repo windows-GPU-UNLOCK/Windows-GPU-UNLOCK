@@ -30,6 +30,8 @@ python .\tools\prepare_usb.py --assets .\assets --output .\usb-package
 
 After size and hash validation, the tool creates a **new local folder**. Manually copy the **contents of** `usb-package` to the FAT32 USB root. Back up and inspect existing destination files before replacing anything.
 
+Copied assets are checked against their original pinned sizes and SHA-256 hashes. The source ZIP and packaged documentation use the verified source bytes and the original `SOURCE-MANIFEST.json` snapshot. Only documentation and license files listed in that manifest are included; extra local files are excluded. Keep inputs unchanged while packaging. An input mismatch stops preparation and removes the temporary package. These checks establish package integrity, not compatibility with another PC or permission to bypass the EFI guards.
+
 ```text
 USB:/
   EFI/BOOT/BOOTX64.EFI
