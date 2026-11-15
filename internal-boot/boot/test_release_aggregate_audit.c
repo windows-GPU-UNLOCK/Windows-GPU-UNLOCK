@@ -4,11 +4,29 @@
 #include "test_aggregate_full.c"
 #undef main
 
-static EFI_PCI_IO_PROTOCOL BridgeIo;
-static UINT32 BridgeConfig[64];
-static UINT8 BridgePath[22];
-static UINTN BridgeTag[8];
-#define BRIDGE_HANDLE ((EFI_HANDLE)&BridgeTag[3])
+#define TEST_PARENT_COUNT ((TEST_CONTROLLER_BYTES-12U)/6U-1U)
+_Static_assert(TEST_PARENT_COUNT>=1 && TEST_PARENT_COUNT<=GU_DS_EFI_MAX_PARENTS,"bounded actual parent chain");
+typedef struct {
+  EFI_PCI_IO_PROTOCOL Io;
+  UINT32 Config[64];
+  UINT8 Path[GU_DS_EFI_MAX_PATH];
+  UINTN Tag[8],Segment,Bus,Device,Function,PathBytes;
+  UINT64 Attributes,Supported;
+} RAM_PARENT;
+static RAM_PARENT Parents[TEST_PARENT_COUNT];
+static unsigned SelectedParent,ParentFault,ParentReads[TEST_PARENT_COUNT];
+#define BridgeIo Parents[SelectedParent].Io
+#define BridgeConfig Parents[SelectedParent].Config
+#define PARENT_HANDLE_AT(i) ((EFI_HANDLE)&Parents[i].Tag[3])
+#define BRIDGE_HANDLE PARENT_HANDLE_AT(SelectedParent)
+static UINTN ParentHandleIndex(EFI_HANDLE h) {
+  for(UINTN i=0;i<TEST_PARENT_COUNT;i++)if(h==PARENT_HANDLE_AT(i))return i;
+  return TEST_PARENT_COUNT;
+}
+static UINTN ParentIoIndex(EFI_PCI_IO_PROTOCOL *io) {
+  for(UINTN i=0;i<TEST_PARENT_COUNT;i++)if(io==&Parents[i].Io)return i;
+  return TEST_PARENT_COUNT;
+}
 static BOOLEAN Reenter;
 static unsigned BridgeReads,FaultRead,OpenMode,CloseMode,ForeignBefore,RecursiveChecks;
 static unsigned TplDepth,TplRaises,TplRestores;
@@ -38,8 +56,10 @@ static UINTN OtherRefs(VOID) {
   return n;
 }
 static EFI_STATUS EFIAPI AuditHandle(EFI_HANDLE h,EFI_GUID *g,VOID **out) {
-  if(h==BRIDGE_HANDLE) {
-    *out=NULL;if(GuGuidEqual(g,&PciGuid))*out=&BridgeIo;if(GuGuidEqual(g,&PathGuid))*out=BridgePath;
+  UINTN i=ParentHandleIndex(h);
+  if(i<TEST_PARENT_COUNT) {
+    *out=NULL;if(GuGuidEqual(g,&PciGuid))*out=ParentFault==8 && i==SelectedParent?&Io:&Parents[i].Io;
+    if(GuGuidEqual(g,&PathGuid))*out=Parents[i].Path;
     return *out?EFI_SUCCESS:EFI_UNSUPPORTED;
   }
   return Handle(h,g,out);
@@ -47,13 +67,13 @@ static EFI_STATUS EFIAPI AuditHandle(EFI_HANDLE h,EFI_GUID *g,VOID **out) {
 static EFI_STATUS EFIAPI AuditLocate(EFI_LOCATE_SEARCH_TYPE type,EFI_GUID *g,VOID *key,UINTN *count,EFI_HANDLE **out) {
   EFI_STATUS s=Locate(type,g,key,count,out);
   if(s==EFI_SUCCESS && type==AllHandles) {
-    EFI_HANDLE *p=realloc(*out,(*count+1)*sizeof(**out));Check(p!=NULL,"extended parent handle inventory");
-    *out=p;(*out)[(*count)++]=BRIDGE_HANDLE;
+    EFI_HANDLE *p=realloc(*out,(*count+TEST_PARENT_COUNT)*sizeof(**out));Check(p!=NULL,"extended parent handle inventory");
+    *out=p;for(UINTN i=0;i<TEST_PARENT_COUNT;i++)(*out)[(*count)++]=PARENT_HANDLE_AT(i);
   }
   return s;
 }
 static EFI_STATUS EFIAPI AuditProtocols(EFI_HANDLE h,EFI_GUID ***out,UINTN *count) {
-  if(h!=BRIDGE_HANDLE)return Protocols(h,out,count);
+  if(ParentHandleIndex(h)==TEST_PARENT_COUNT)return Protocols(h,out,count);
   *out=malloc(2*sizeof(**out));Check(*out!=NULL,"parent protocol inventory");
   (*out)[0]=&PciGuid;(*out)[1]=&PathGuid;*count=2;return EFI_SUCCESS;
 }
@@ -61,13 +81,16 @@ static EFI_STATUS EFIAPI AuditFind(EFI_GUID *g,EFI_DEVICE_PATH_PROTOCOL **path,E
   if((VOID *)*path==DisplayPaths[0] || (VOID *)*path==DisplayPaths[1] || (VOID *)*path==FaultDisplayPath)
     return FindPci(g,path,h); /* Preserve all legacy shortened/longer/parent drift faults. */
   Check(GuGuidEqual(g,&PciGuid),"PCI collector lookup");const UINT8 *p=(const VOID *)*path;
-  if(!memcmp(p,BridgePath,sizeof(BridgePath))){*h=BRIDGE_HANDLE;*path=(VOID *)(p+18);return EFI_SUCCESS;}
+  for(UINTN i=0;i<TEST_PARENT_COUNT;i++)if(!memcmp(p,Parents[i].Path,Parents[i].PathBytes)) {
+    *h=ParentFault==7 && i==SelectedParent?H(PCI):PARENT_HANDLE_AT(i);
+    *path=(VOID *)(p+Parents[i].PathBytes-4-(ParentFault==10 && i==SelectedParent?1:0));return EFI_SUCCESS;
+  }
   if(!memcmp(p,ControllerPath,sizeof(ControllerPath))){*h=H(PCI);*path=(VOID *)(p+TEST_CONTROLLER_BYTES);return EFI_SUCCESS;}
   return EFI_UNSUPPORTED;
 }
 static EFI_STATUS EFIAPI AuditLocation(EFI_PCI_IO_PROTOCOL *io,UINTN *s,UINTN *b,UINTN *d,UINTN *f) {
-  if(io!=&BridgeIo)return Location(io,s,b,d,f);
-  *s=GU_TARGET_SEGMENT;*b=0;*d=BridgePath[17];*f=BridgePath[16];return EFI_SUCCESS;
+  UINTN i=ParentIoIndex(io);if(i==TEST_PARENT_COUNT)return Location(io,s,b,d,f);
+  *s=Parents[i].Segment;*b=Parents[i].Bus;*d=Parents[i].Device;*f=Parents[i].Function;return EFI_SUCCESS;
 }
 static EFI_STATUS EFIAPI AuditRead(EFI_PCI_IO_PROTOCOL *io,EFI_PCI_IO_PROTOCOL_WIDTH w,UINT32 at,UINTN count,VOID *out) {
   if(LateSubsetFault && ReleaseAudit.AfterReady && Full.Owned && !LateSubsetInjected) {
@@ -83,26 +106,28 @@ static EFI_STATUS EFIAPI AuditRead(EFI_PCI_IO_PROTOCOL *io,EFI_PCI_IO_PROTOCOL_W
     if(ReleaseAudit.Verifying)Check(GuVerifyReleased(&Table,FALSE)==EFI_ALREADY_STARTED,"recursive aggregate verifier refused");
     Check(before==BridgeReads && next==ReleaseAudit.Next,"reentry cannot consume observations");RecursiveChecks++;
   }
-  if(io!=&BridgeIo)return Read(io,w,at,count,out);
-  Check(w==EfiPciIoWidthUint32 && !at && count==64,"bounded parent PCI read");BridgeReads++;
-  if(BridgeReads<=2)Check(!Calls,"aggregate parent baseline before first driver release");
-  if(BridgeReads==EffectAt) {
+  UINTN i=ParentIoIndex(io);if(i==TEST_PARENT_COUNT)return Read(io,w,at,count,out);
+  Check(w==EfiPciIoWidthUint32 && !at && count==64,"bounded parent PCI read");ParentReads[i]++;
+  if(i==SelectedParent)BridgeReads++;
+  if(ParentReads[i]<=2)Check(!Calls,"every parent has two baseline scans before first driver release");
+  if(i==SelectedParent && BridgeReads==EffectAt) {
     Injected=TRUE;
     if(EffectFault==1)Boot.OpenProtocol=NULL;if(EffectFault==2)Boot.CloseProtocol=NULL;
     if(EffectFault==3)Boot.DisconnectController=NULL;if(EffectFault==4)Boot.RaiseTPL=NULL;
     if(EffectFault==5)Boot.RestoreTPL=NULL;
   }
-  memcpy(out,BridgeConfig,sizeof(BridgeConfig));if(BridgeReads==FaultRead)((UINT32 *)out)[63]^=1;
+  memcpy(out,Parents[i].Config,sizeof(Parents[i].Config));if(i==SelectedParent && BridgeReads==FaultRead)((UINT32 *)out)[63]^=1;
   return EFI_SUCCESS;
 }
 static EFI_STATUS EFIAPI AuditAttr(EFI_PCI_IO_PROTOCOL *io,EFI_PCI_IO_PROTOCOL_ATTRIBUTE_OPERATION op,UINT64 mask,UINT64 *out) {
-  if(io!=&BridgeIo) {
+  UINTN i=ParentIoIndex(io);
+  if(i==TEST_PARENT_COUNT) {
     UINT64 removed=MODEL_TARGET&~((StopRemaining&1?GU_DS_IO:0)|(StopRemaining&2?GU_DS_MEMORY:0));
     if(op==EfiPciIoAttributeOperationEnable)Check(mask==removed && ReleaseAudit.HeldQuery && SelfRefs()==1,"only missing original decode under precise held claim");
     return Attr(io,op,mask,out);
   }
   Check(!mask && out && (op==EfiPciIoAttributeOperationGet || op==EfiPciIoAttributeOperationSupported),"parent never written");
-  *out=op==EfiPciIoAttributeOperationGet?GU_DS_MEMORY:GU_DS_IO|GU_DS_MEMORY|GU_DS_MASTER;return EFI_SUCCESS;
+  *out=op==EfiPciIoAttributeOperationGet?Parents[i].Attributes:Parents[i].Supported;return EFI_SUCCESS;
 }
 static EFI_STATUS EFIAPI AuditOpen(EFI_HANDLE h,EFI_GUID *g,VOID **out,EFI_HANDLE owner,EFI_HANDLE controller,UINT32 attr) {
   Check(ReleaseAudit.HeldQuery!=NULL,"no-self query retained until aggregate Open");
@@ -138,8 +163,8 @@ static EFI_STATUS EFIAPI AuditOwners(EFI_HANDLE h,EFI_GUID *g,EFI_OPEN_PROTOCOL_
   return s;
 }
 static EFI_STATUS EFIAPI AuditFree(VOID *p) {
-  UINTN address=(UINTN)p,base=(UINTN)BridgeTag;
-  Check(address<base || address-base>=sizeof(BridgeTag),"never free borrowed aggregate parent handle");
+  UINTN address=(UINTN)p,base=(UINTN)Parents;
+  Check(address<base || address-base>=sizeof(Parents),"never free borrowed aggregate parent storage");
   base=(UINTN)PreparedGraph;Check(!PreparedGraph || address<base || address-base>=sizeof(*PreparedGraph),"never free borrowed aggregate graph");
   return Free(p);
 }
@@ -161,12 +186,24 @@ static EFI_STATUS EFIAPI AuditDisconnect(EFI_HANDLE h,EFI_HANDLE agent,EFI_HANDL
 static EFI_TPL EFIAPI AuditRaise(EFI_TPL level) {Check(level==TPL_NOTIFY,"known TPL");TplRaises++;return TplDepth++?TPL_NOTIFY:TPL_APPLICATION;}
 static VOID EFIAPI AuditRestore(EFI_TPL old) {Check(TplDepth>0,"balanced TPL");TplDepth--;TplRestores++;Check(old==(TplDepth?TPL_NOTIFY:TPL_APPLICATION),"restored old TPL");}
 static void InstallParent(void) {
-  Check(TEST_CONTROLLER_BYTES==24,"explicit one-parent synthetic route");
-  memcpy(BridgePath,ControllerPath,18);memcpy(BridgePath+18,(UINT8[]){127,255,4,0},4);
-  memset(BridgeConfig,0,sizeof(BridgeConfig));BridgeConfig[0]=0x14831022;BridgeConfig[1]=2;
-  BridgeConfig[2]=0x06040000;BridgeConfig[3]=0x10000;BridgeConfig[6]=(GU_TARGET_BUS<<8)|(GU_TARGET_BUS<<16);
-  if(StatusLayout)BridgeConfig[32]=0x90000;
-  BridgeIo=(EFI_PCI_IO_PROTOCOL){0};BridgeIo.GetLocation=AuditLocation;BridgeIo.Pci.Read=AuditRead;BridgeIo.Attributes=AuditAttr;
+  UINTN parents=0;Check(GuDsControllerParents(ControllerPath,sizeof(ControllerPath),&parents) && parents==TEST_PARENT_COUNT,"capture supplies complete bounded parent chain");
+  memset(Parents,0,sizeof(Parents));memset(ParentReads,0,sizeof(ParentReads));
+  for(UINTN i=0;i<parents;i++) {
+    RAM_PARENT *p=&Parents[i];UINTN body=18+6*i;
+    memcpy(p->Path,ControllerPath,body);memcpy(p->Path+body,(UINT8[]){127,255,4,0},4);p->PathBytes=body+4;
+    p->Segment=GU_TARGET_SEGMENT;p->Bus=i;p->Device=p->Path[body-1];p->Function=p->Path[body-2];
+    p->Config[0]=0x14831022;p->Config[1]=2;p->Config[2]=0x06040000;p->Config[3]=0x10000;
+    p->Config[6]=(UINT32)(i|((i+1<parents?i+1:GU_TARGET_BUS)<<8)|(GU_TARGET_BUS<<16));
+    p->Attributes=GU_DS_MEMORY;p->Supported=GU_DS_IO|GU_DS_MEMORY|GU_DS_MASTER;
+    if(StatusLayout)p->Config[32]=0x90000;
+    p->Io.GetLocation=AuditLocation;p->Io.Pci.Read=AuditRead;p->Io.Attributes=AuditAttr;
+  }
+  RAM_PARENT *bad=&Parents[SelectedParent];
+  if(ParentFault==1)bad->Segment^=1;if(ParentFault==2)bad->Bus=GU_TARGET_BUS;
+  if(ParentFault==3)bad->Device^=1;if(ParentFault==4)bad->Function^=1;
+  if(ParentFault==5)bad->Config[6]&=~0xff00U;if(ParentFault==6)bad->Config[6]&=~0xff0000U;
+  if(ParentFault==9)bad->Path[bad->PathBytes-4]=1;
+  if(ParentFault==11)bad->Supported=~0ULL;if(ParentFault==12)bad->Attributes^=GU_DS_IO;
   Io.GetLocation=AuditLocation;Io.Pci.Read=AuditRead;Io.Attributes=AuditAttr;
   Boot.HandleProtocol=AuditHandle;Boot.LocateDevicePath=AuditFind;Boot.LocateHandleBuffer=AuditLocate;Boot.ProtocolsPerHandle=AuditProtocols;
   Boot.OpenProtocol=AuditOpen;Boot.CloseProtocol=AuditClose;Boot.RaiseTPL=AuditRaise;Boot.RestoreTPL=AuditRestore;
@@ -184,7 +221,7 @@ static EFI_STATUS Run(unsigned mode,BOOLEAN mismatch,unsigned fault,BOOLEAN reen
   if(ForeignBefore)Edge(PCI,OBSERVER,0,&PciGuid,EFI_OPEN_PROTOCOL_GET_PROTOCOL);
   EFI_STATUS s=GuPrepareConsole(&Table,AuditLog,NULL);
   Check(!Calls,"aggregate prepare performs zero Disconnect calls");
-  if(!fault && !EffectFault
+  if(!fault && !EffectFault && !ParentFault
 #ifndef GU_RELEASE_MISMATCH_RESEARCH
      && !mismatch
 #endif
@@ -232,7 +269,8 @@ int main(int argc,char **argv) {
         if(mode==15 || mode==16)Check(s==EFI_CRC_ERROR && FirstError && !strcmp(FirstError,mode==15?"nvidia-code-profile":"ami-runtime-code-profile"),"exact original CRC gate");
       }
     }
-    /* Budget above includes two external verifies; inject all release reads. */
+    /* A selected-parent counter identifies each actual observation boundary. */
+    for(SelectedParent=0;SelectedParent<TEST_PARENT_COUNT;SelectedParent++) {
     Check(Run(0,(BOOLEAN)route,0,FALSE)==EFI_SUCCESS,"release-only parent budget");unsigned releaseReads=BridgeReads;
     for(unsigned fault=1;fault<=releaseReads;fault++) {
       Check(Run(0,(BOOLEAN)route,fault,FALSE)!=EFI_SUCCESS,"parent drift at every actual aggregate release observation refuses");
@@ -245,6 +283,8 @@ int main(int argc,char **argv) {
       Check(!SelfRefs(),"frozen aggregate cleanup removes known claim after dispatch drift");
     }
     EffectFault=EffectAt=0;
+    }
+    SelectedParent=0;
     LateGraphFault=TRUE;
     Check(Run(0,(BOOLEAN)route,0,FALSE)!=EFI_SUCCESS && LateGraphInjected && Claims==1 && !Enables && Closes==1 && !SelfRefs(),
       "protected graph mutation during pre-Enable audit blocks write while preserving precise cleanup");
@@ -296,6 +336,28 @@ int main(int argc,char **argv) {
     Check(Run(0,(BOOLEAN)route,0,FALSE)==EFI_SUCCESS,"aggregate new image for strict parent status");
     BridgeConfig[32]&=~0x90000;Check(GuVerifyReleased(&Table,FALSE)!=EFI_SUCCESS,"GPU status-clear policy never applies to aggregate parent");
     StatusLayout=FALSE;
+    for(SelectedParent=0;SelectedParent<TEST_PARENT_COUNT;SelectedParent++) {
+      for(ParentFault=1;ParentFault<=12;ParentFault++) {
+        Check(Run(0,(BOOLEAN)route,0,FALSE)!=EFI_SUCCESS && !Calls && !Claims && !Enables,
+          "each invalid parent BDF/window/path/handle/interface/capability refuses before release");
+      }
+      ParentFault=0;
+      for(unsigned field=0;field<5;field++) {
+        Check(Run(0,(BOOLEAN)route,0,FALSE)==EFI_SUCCESS,"fresh chain for final parent mutation");
+        RAM_PARENT *p=&Parents[SelectedParent];
+        if(field==0)p->Config[63]^=1;if(field==1)p->Segment^=1;
+        if(field==2)p->Supported^=0x1000;if(field==3)p->Attributes^=GU_DS_IO;
+        if(field==4)p->Io.GetLocation=NULL;
+        unsigned writes=Enables,calls=Calls;
+        Check(GuVerifyReleased(&Table,FALSE)!=EFI_SUCCESS && Enables==writes && Calls==calls,
+          "each parent's final config/location/support/cache/method drift blocks handoff without effects");
+      }
+      OwnerFault=2;
+      Check(Run(0,(BOOLEAN)route,0,FALSE)!=EFI_SUCCESS && Claims==1 && !Closes && !Enables && SelfRefs()==1,
+        "borrowed query storage from every parent never grants cleanup or write");
+      OwnerFault=0;
+    }
+    SelectedParent=0;
   }
 #if !defined(GU_RELEASE_MISMATCH_RESEARCH) && !defined(GU_RELEASE_IOMEM_MODEL)
   Check(Run(0,TRUE,0,FALSE)==EFI_NOT_READY && !Calls && !Claims && !Enables,
@@ -314,6 +376,6 @@ int main(int argc,char **argv) {
     "a different coherent subset after the first post-Stop observation cannot authorize Enable");
   LateSubsetFault=FALSE;
 #endif
-  printf("PASS aggregate release audit: %u children, %u parent read budget, %u checks; actual production phases, RAM only\n",TEST_CHILDREN,readBudget,Checks);
+  printf("PASS aggregate release audit: %u children, %u parents, %u selected-parent read budget, %u checks; actual production phases, RAM only\n",TEST_CHILDREN,(unsigned)TEST_PARENT_COUNT,readBudget,Checks);
   return 0;
 }

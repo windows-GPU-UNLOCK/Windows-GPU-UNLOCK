@@ -18,6 +18,50 @@ def load(name, path):
     return module
 
 
+def path_rows(path):
+    rows, at = [], 0
+    while at < len(path):
+        size = int.from_bytes(path[at + 2:at + 4], 'little')
+        if size < 4 or at + size > len(path):
+            raise ValueError('Incomplete synthetic parent path')
+        rows.append('path-node raw=' + path[at:at + size].hex())
+        at += size
+    return '\n'.join(rows)
+
+
+def replace_once(text, old, new, label):
+    count = text.count(old)
+    if count != 1:
+        raise RuntimeError(f'Expected exactly one {label}, found {count}')
+    return text.replace(old, new, 1)
+
+
+def replace_repeated(text, old, new, expected, label):
+    count = text.count(old)
+    if count != expected:
+        raise RuntimeError(f'Expected {expected} {label} occurrences, found {count}')
+    return text.replace(old, new)
+
+
+def apply_parent_chain(text, data, vectors, *, hops, root, segment, children):
+    primary = vectors.path(hops, root, 42 if root == 8 else 0)
+    layout = vectors.subject.decode_gpu_display_path(primary)
+    text = replace_repeated(text, path_rows(data.PCI_PATH),
+        path_rows(primary[:layout['controller_bytes']]), children + 2,
+        'synthetic controller path')
+    text = replace_once(text, 'probe-target seg=0x0000 ',
+        f'probe-target seg=0x{segment:04x} ', 'probe target segment')
+    text = replace_once(text, 'pci location-status=0x0 segment=0x0 ',
+        f'pci location-status=0x0 segment=0x{segment:x} ', 'GPU location segment')
+    defines = {
+        'GU_RTX_PATH_BYTES': ','.join(str(value) for value in primary),
+        'GU_TARGET_SEGMENT': f'0x{segment:x}U',
+        'GU_ROOT_PORT_DEVICE': str(layout['pci_nodes'][0][0]) + 'U',
+        'GU_ROOT_PORT_FUNCTION': str(layout['pci_nodes'][0][1]) + 'U',
+    }
+    return text, defines, layout
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--clang', required=True)
@@ -29,9 +73,19 @@ def main():
     parser.add_argument('--aggregate', action='store_true', help='Use the separate aggregate GOP frontend')
     parser.add_argument('--iomem', action='store_true', help='Model a coherent command3/cache300 release origin')
     parser.add_argument('--amd-retained', action='store_true', help='Use the fixed B650M retained AMD frontend')
+    parser.add_argument('--parent-chain', action='store_true', help='Use bounded aggregate PCI ancestry vectors')
+    parser.add_argument('--hops', type=int, choices=range(2, 17), default=2, help='PCI nodes including the GPU')
+    parser.add_argument('--segment', type=lambda value: int(value, 0), default=0)
+    parser.add_argument('--root', type=int, choices=(3, 8), default=3, help='PNP0A03/PNP0A08 root')
     args = parser.parse_args()
     if args.aggregate and not args.edid_driver:
         parser.error('The aggregate research frontend requires --edid-driver')
+    if not 0 <= args.segment <= 0xffff:
+        parser.error('Segment must be in 0..65535')
+    if args.parent_chain and not args.aggregate:
+        parser.error('--parent-chain currently requires --aggregate')
+    if not args.parent_chain and (args.hops != 2 or args.segment or args.root != 3):
+        parser.error('Non-default ancestry options require --parent-chain')
     if args.amd_retained and (args.aggregate or not args.edid_driver or args.children > 2):
         parser.error('--amd-retained requires --edid-driver, 1/2 children and no --aggregate')
     if args.iomem and args.mismatch:
@@ -60,6 +114,12 @@ def main():
         retained = load('release_audit_amd', ROOT / 'research/amd-retained/synthetic.py')
         text, configuration = retained.capture(data, children=args.children, command=command)
     admitted = None if args.amd_retained else data.analyze(text)
+    defines = dict(admitted['defines']) if admitted else {}
+    if args.parent_chain:
+        vectors = load('release_parent_path_vectors', ROOT / 'research/profile/test_gpu_path_contract.py')
+        text, chain_defines, _ = apply_parent_chain(text, data, vectors,
+            hops=args.hops, root=args.root, segment=args.segment, children=args.children)
+        defines.update(chain_defines)
     header = out / 'profile-local.h'
     header.write_text('/* Synthetic RAM model, not LOCAL qualification. */\n'
         '#define GU_LOCAL_PROFILE_GENERATOR 1\n#define GU_PROFILE_NAME "SYNTHETIC-PARENT-AUDIT"\n'
@@ -67,7 +127,7 @@ def main():
         hashlib.sha256(bytes(0x24426)).hexdigest() + '"\n' +
         ('#define GU_EDID_TEXT_BYTES 0x700U\n#define GU_EDID_TEXT_SHA256 "' +
          hashlib.sha256(bytes(0x700)).hexdigest() + '"\n' if args.edid_driver else '') +
-        '\n'.join(f'#define {key} {value}' for key, value in (admitted['defines'] if admitted else [])) + '\n', encoding='ascii')
+        '\n'.join(f'#define {key} {value}' for key, value in defines.items()) + '\n', encoding='ascii')
     capture = out / 'capture.txt'
     capture.write_text(text, encoding='ascii')
     nv = out / 'nvgop.bin'
@@ -249,7 +309,8 @@ def main():
     (out / 'summary.json').write_text(json.dumps({'passed': True, 'ram_only': True,
         'efi_executed': False, 'mismatch_admission_enabled': args.mismatch, 'host_only': True,
         'edid_driver': args.edid_driver, 'display_children': args.children, 'aggregate': args.aggregate, 'iomem': args.iomem,
-        'amd_retained': args.amd_retained, 'result': result, 'legacy_retained_result': legacy_retained_result,
+        'amd_retained': args.amd_retained, 'parent_chain': args.parent_chain, 'pci_hops': args.hops,
+        'segment': args.segment, 'root': args.root, 'result': result, 'legacy_retained_result': legacy_retained_result,
         'rejected_images': rejected_images,
         'synthetic_input_sha256': {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in
             [capture, header, nv, prom, config, platform, fixture, *([edid] if args.edid_driver else [])]},

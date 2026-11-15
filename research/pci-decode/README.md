@@ -759,6 +759,36 @@ nonaggregate EDID1–2 and nonaggregate no-EDID1–4 children. Do not combine it
 coherent command3 retains the original IO+MEM target300 and never enters that
 correction route. The ordinary correction validator/collector remains raw2-only.
 
+The aggregate parent audit can also vary the complete synthetic PCI route. Add
+`--parent-chain --hops 2..16 --root 3|8 --segment 0..65535` to an aggregate
+EDID-driver run (root `3` selects PNP0A03/UID0; root `8` selects PNP0A08/UID42).
+`--hops` counts PCI nodes including the GPU, so it models 1–15 parent bridges.
+The runner substitutes the controller path and target/location segment records
+in the generated capture and records all four selections in `summary.json`.
+These options remain synthetic fixture controls; they do not widen a hardware
+profile or LOCAL admission.
+
+Existing actual-source run artifacts cover the default two-node/one-parent route
+(`research/pci-decode/build/release-chain-1/legacy/summary.json`) and a
+three-node/two-parent route with PNP0A08/UID42 and segment 1
+(`research/pci-decode/build/release-chain-1/chain3/summary.json`). Their recorded
+source hashes matched the then-current runner and aggregate test. Both use the
+coherent command3 aggregate history and two display children. Fresh source builds
+for the current C test are recorded separately below. Passing these fixtures is
+not physical PCI topology evidence.
+
+A fresh local MSVC 19.44 host build additionally compiled and executed the current
+aggregate C source for every PCI-node depth 2–16 under both root types, with
+segment values 0, 1 and 65535 distributed through the matrix (30 routes, two
+display children). All 30 direct RAM executable runs passed, covering 92,237,570
+assertions total. Two separately built mismatch-history routes also passed: three
+PCI nodes with PNP0A08/UID42/segment1, and sixteen nodes with PNP0A03/UID0/segment
+65535. This verifies generated software fixtures and actual release-source logic,
+not physical devices. The runner's Clang-specific compile-guard/mutation phase did
+not complete under the MSVC compatibility launcher; those checks remain pending a
+native Clang run. The ignored run artifacts are under
+`research/pci-decode/build/parent-chain-msvc-resume-1/`.
+
 `GuDsReleaseSnapshotValid` shares structural checks while separately requiring
 raw3/cache300 and both IO/MEM capabilities for that origin. Opt-in release-origin
 and IO+MEM post-Stop collectors retain the same frozen inputs, single-use private
