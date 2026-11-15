@@ -1,0 +1,17 @@
+{
+  "SchemaVersion": 2,
+  "Id": "issue173",
+  "Scope": "pinned-read-only-resource-capture",
+  "Board": "MEG Z790 ACE (MS-7D86)",
+  "ManufacturerPrefix": "Micro-Star",
+  "ManufacturerMatch": "prefix",
+  "Bios": "1.G0",
+  "CpuToken": "i9-13900K",
+  "TargetBus": 1,
+  "TargetDevice": "221610de",
+  "TargetSubsystem": "48973842",
+  "OtherPciVendor": "8086",
+  "OtherPciDevice": "A780",
+  "OtherPciSubsystem": "7D861462",
+  "NonPci": []
+}

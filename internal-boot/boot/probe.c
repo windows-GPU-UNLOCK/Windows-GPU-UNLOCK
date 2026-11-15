@@ -19,6 +19,13 @@
 #endif
 #include "../unlock/machine-profile.h"
 
+#if defined(GU_PROBE_EXPECTED_ID) != defined(GU_PROBE_EXPECTED_SUBSYSTEM)
+#error Probe identity pins must be supplied together
+#endif
+#if defined(GU_PROBE_EXPECTED_ID) && (!defined(GU_PROBE_GENERIC) || !defined(GU_DIAGNOSTIC_ONLY) || !defined(GU_DIAGNOSTIC_PROBE) || defined(GU_PROBE_AUTO_BUS) || defined(GU_FULL_UNLOCK) || defined(GU_CONSOLE_PREPARE) || defined(GU_EXPERIMENTAL_3090))
+#error Probe identity pins require an explicit-bus generic diagnostic only
+#endif
+
 #if defined(GU_PROBE_DUMP_PROM) && (!defined(GU_DIAGNOSTIC_ONLY) || !defined(GU_DIAGNOSTIC_PROBE) || !defined(GU_USB_MEDIA) || defined(GU_FULL_UNLOCK) || defined(GU_EXPERIMENTAL_3090))
 #error GU_PROBE_DUMP_PROM is only for the observation-only diagnostic image
 #endif
@@ -172,6 +179,16 @@ static BOOLEAN ProbeEnvelope(CAPTURE *c,EFI_PCI_IO_PROTOCOL *io,const UINT32 *cf
 #ifdef GU_PROBE_GENERIC
   BOOLEAN identity=cfg[0]==0x220410deU || cfg[0]==0x220310deU ||
     cfg[0]==0x248710deU || cfg[0]==0x250410deU || cfg[0]==0x248410deU || cfg[0]==0x24c910deU || cfg[0]==0x220a10deU;
+#ifdef GU_PROBE_EXPECTED_ID
+  /* Separately scoped capture research: EVGA 3080 / MEG Z790 ACE case.
+   * This is not generic 2216 admission or write/profile qualification. The
+   * existing MEM1/BME0/resource/callback guards below still precede MMIO. */
+#if GU_PROBE_EXPECTED_ID == 0x221610deU && GU_PROBE_EXPECTED_SUBSYSTEM == 0x48973842U && GU_PROBE_BUS == 1
+  identity=identity || (cfg[0]==0x221610deU && cfg[11]==0x48973842U);
+#endif
+  /* Additional restriction only: never expands the reviewed register maps. */
+  identity=identity && cfg[0]==GU_PROBE_EXPECTED_ID && cfg[11]==GU_PROBE_EXPECTED_SUBSYSTEM;
+#endif
 #else
   BOOLEAN identity=cfg[0]==GU_BOARD_ID && cfg[11]==GU_BOARD_SUBSYSTEM;
 #ifdef GU_BAR0_BASE
@@ -229,6 +246,9 @@ static VOID ProbeBar(CAPTURE *c,EFI_PCI_IO_PROTOCOL *io,UINT32 bar,EFI_FILE_PROT
   };
   UINT8 *page=NULL;EFI_STATUS s;
 #ifdef GU_CHECKED_PROBE
+#ifdef GU_PROBE_EXPECTED_ID
+  if(expectedSegment!=0){Problem(c,"probe-segment-pin",EFI_UNSUPPORTED);return;}
+#endif
   GU_PROBE_PIN pin;
   if(!GuProbeTakePin(c,io,&pin)){Problem(c,"probe-capabilities",EFI_NOT_READY);return;}
   if(!ProbeEnvelope(c,io,cfg)){Problem(c,"probe-unreviewed-envelope",EFI_UNSUPPORTED);return;}

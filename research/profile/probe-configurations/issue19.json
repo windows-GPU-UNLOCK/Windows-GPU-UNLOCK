@@ -1,0 +1,17 @@
+{
+  "SchemaVersion": 2,
+  "Id": "issue19",
+  "Scope": "pinned-read-only-resource-capture",
+  "Board": "1052",
+  "ManufacturerPrefix": "LENOVO",
+  "ManufacturerMatch": "exact",
+  "Bios": "S0AKT48A",
+  "CpuToken": "i9-11900K",
+  "TargetBus": 1,
+  "TargetDevice": "250410de",
+  "TargetSubsystem": "881d1043",
+  "OtherPciVendor": null,
+  "NonPci": [],
+  "OtherPciDevice": null,
+  "OtherPciSubsystem": null
+}

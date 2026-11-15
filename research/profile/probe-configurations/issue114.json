@@ -1,0 +1,17 @@
+{
+  "SchemaVersion": 2,
+  "Id": "issue114",
+  "Scope": "pinned-read-only-resource-capture",
+  "Board": "B650M DS3H",
+  "ManufacturerPrefix": "Gigabyte",
+  "Bios": "F21",
+  "CpuToken": "Ryzen 5 7600",
+  "TargetBus": 1,
+  "TargetDevice": "250410de",
+  "TargetSubsystem": "263019da",
+  "OtherPciVendor": "1002",
+  "NonPci": [],
+  "ManufacturerMatch": "prefix",
+  "OtherPciDevice": "164E",
+  "OtherPciSubsystem": "D0001458"
+}

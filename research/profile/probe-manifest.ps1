@@ -25,6 +25,14 @@ function Assert-GuGenericProbeManifest([string]$Repo,$Manifest,[string]$Efi) {
         ($Manifest.TargetBus -is [int] -or $Manifest.TargetBus -is [long]) -and $Manifest.TargetBus -ge 1 -and $Manifest.TargetBus -le 255){
   $defines+=('-DGU_PROBE_BUS=0x{0:x}U' -f [int]$Manifest.TargetBus)
  }else{throw 'Generic probe bus metadata is invalid'}
+ if($null -ne $Manifest.ExpectedDevice -or $null -ne $Manifest.ExpectedSubsystem){
+  if($Manifest.ProbeBusMode -cne 'explicit' -or $Manifest.ExpectedDevice -isnot [string] -or
+     $Manifest.ExpectedDevice -cnotmatch '^[0-9a-f]{8}$' -or $Manifest.ExpectedSubsystem -isnot [string] -or
+     $Manifest.ExpectedSubsystem -cnotmatch '^[0-9a-f]{8}$' -or
+     ($Manifest.ExpectedSegment -isnot [int] -and $Manifest.ExpectedSegment -isnot [long]) -or $Manifest.ExpectedSegment -ne 0){throw 'Generic probe identity pins are invalid'}
+  $defines+=('-DGU_PROBE_EXPECTED_ID=0x'+$Manifest.ExpectedDevice+'U')
+  $defines+=('-DGU_PROBE_EXPECTED_SUBSYSTEM=0x'+$Manifest.ExpectedSubsystem+'U')
+ }elseif($null -ne $Manifest.ExpectedSegment){throw 'Segment pin requires the paired probe identity pins'}
  if(@($Manifest.Defines).Count -ne $defines.Count){throw 'Generic probe define set is incomplete'}
  foreach($define in $defines){if(@($Manifest.Defines | Where-Object {$_ -is [string] -and $_ -ceq $define}).Count -ne 1){throw 'Generic probe define set is invalid'}}
  $expected=@(Get-GuGenericProbeFiles);$rows=@($Manifest.Sources)
