@@ -1,0 +1,91 @@
+{
+  "profile": "local (GU_PROFILE_LOCAL, research/profile/make-profile.py)",
+  "profile_name": "LOCAL-220410de-161319da-2a1eb63a",
+  "hardware_tested_flag_in_profile_json": false,
+  "hardware": {
+    "board": "MSI X870E GAMING PLUS WIFI (MS-7E70)",
+    "bios": "1.A60 (AMI, 2026-05-29)",
+    "cpu": "AMD Ryzen 9 9950X",
+    "igpu": "AMD Radeon Graphics 1002:13c0 / 1462:7e70 at segment 0 bus 121",
+    "gpu": "Zotac RTX 3090 24 GiB (GA102) 10de:2204 / 19da:1613",
+    "vbios": "94.02.42.80.1f",
+    "vbios_history": "unknown; no cross-flash was performed for this report",
+    "pci": "0000:01:00.0",
+    "display": "one NVIDIA GOP during the probe (1920x1080 mode recorded); EDID driver open count 1; physical cable type not recorded; AMD iGPU present; Windows also enumerates a Remote Display Adapter",
+    "cold_from_probe_captures": "chip=0xb72000a1 plm=0xffffff8f gfw=0x8b8f/0x3ff/0x10 WPR2_HI=0 SS0=0x40075135 SS1=0x7 memory=0x6000 pci-attributes=0x300 command=0x0003",
+    "nvgop_code_sha256": "d045cee2113e461c7c678ec21542b1d0f18356765c0fc6a0bf2dcf824088e011",
+    "nvgop_code_bytes": 146818,
+    "nvgop_note": "Code-range hash from the generated profile. The full IMG29.BIN dump hash is in capture-evidence.json and is a different value."
+  },
+  "software": {
+    "windows": "Windows 11 Pro 10.0.26200",
+    "nvidia_driver_smi": "610.62",
+    "nvidia_driver_wmi": "32.0.16.1062",
+    "source_revision": "fd8bbea5b1db991805ffcd7ba84e73fa7867bd8a",
+    "compiler": "clang 20.1.8, x86_64-pc-windows-msvc",
+    "local_diff": "no tracked source patch; private profile-local.h generated on this machine",
+    "benchmark": "repository cuBLAS / PyTorch GEMM protocol was not run"
+  },
+  "route": "headless USB (GU_USB_MEDIA), FAT32 stick, firmware boot menu, one NVIDIA GPU",
+  "captures": {
+    "diag00_sha256": "da3c05b4621ccd3cf9189273927ed29c0f273e858946c4439d655119d27e34a7",
+    "diag01_sha256": "df8e7987f5ae2f9493b9c7e81147889c9bdda7e4ee3634a6ce4154ce291745db",
+    "prom_sha256": "2a1eb63a19c7cb7a43d06e9229b62c61ae1f8900daf1925eb4acd12f2675a8f8",
+    "header_sha256": "37c11a9520a25628fcc23fc1adae0b08d12c508a4b35ffe2143e6613ef6c7eb0",
+    "runs": 2,
+    "checker": "candidate; observations_pass, images_pass, prom_pass; unlock_proven false"
+  },
+  "fwsec_from_profile": {
+    "image_off": 272540,
+    "image_size": 57856,
+    "dmem_size": 2048,
+    "ucode_id": 9,
+    "sig_count": 3,
+    "sig_versions": 7,
+    "sig_bytes": 1152
+  },
+  "local_profile_host_jobs": "22 of 22 matched expectations (test-profile.ps1). HardwareAccess=false. Release replay used the real EDID-driver graph: 5733 checks, no GPU access.",
+  "efi": {
+    "wrapper_sha256": "aeafe1a317bde164b2497f1ab421c0c0e96283569375dc9a79435336e70e67a2",
+    "wrapper_bytes": 39936,
+    "child_sha256": "705168a3319344b38b8abbb2e790372c71de25fa58bf22d885cead0f0962eaa5",
+    "child_bytes": 69120,
+    "child_name": "RTX3090-EXPERIMENTAL-entryLatchedSs1Full-INTERNAL-AUTO-HEADLESS-RESEARCH-USB.EFI",
+    "probe_backup_sha256": "d5f861403627cb06d9f35b1d05ba0fca8da8e417d1c51e019eeba76595c1c1e0",
+    "note": "Hashes of the bytes staged to the FAT32 stick from this machine's profile-local.h. They are not expected hashes for any other machine. The stick was not re-read when this evidence was committed."
+  },
+  "runs": [
+    {
+      "log": "AUTO000000 / HLS000000",
+      "when_local": "2026-11-02 19:32",
+      "boot": "full shutdown, USB selected",
+      "result": "stage=secure-boot attempted=0 clean=1; original-unlock-return and handoff-stopped 0x1A (EFI_SECURITY_VIOLATION); no selector write; GOP already released so the wrapper stopped; operator powered off"
+    },
+    {
+      "log": "AUTO000001 / HLS000001",
+      "when_local": "2026-11-02 19:47:06",
+      "boot": "full shutdown after the operator turned Secure Boot off",
+      "entry_ss0": "0x60065135",
+      "final": "status=0 stage=transaction attempted=1 driver_release=0 clean=1",
+      "after_flr": "SS0=0x88888888 SS1=0x8",
+      "windows": "direct start"
+    },
+    {
+      "log": "AUTO000002 / HLS000002",
+      "when_local": "2026-11-02 20:18:10",
+      "boot": "full shutdown, USB selected again after a bugcheck reboot",
+      "entry_ss0": "0x40065135",
+      "final": "status=0 stage=transaction attempted=1 driver_release=0 clean=1",
+      "after_flr": "SS0=0x88888888 SS1=0x8",
+      "windows": "direct start; pre-release-cold-check, original-unlock-return, full-windows-start and windows-preclose-verify-begin were status 0"
+    }
+  ],
+  "not_established": [
+    "matched FP32/FP16/BF16/TF32 GEMM before and after",
+    "tensor-core speedup",
+    "sleep, hibernate and warm-restart persistence",
+    "internal ESP route",
+    "reuse of this header on another board, including issue 81's Zotac 3090"
+  ],
+  "excluded": ["PROM image", "profile-local.h", "driver image dumps", "raw probe and handle-graph logs", "partition and disk identifiers", "firmware asset binaries"]
+}
