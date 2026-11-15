@@ -439,6 +439,7 @@ static VOID ReleaseHalt(EFI_STATUS Status,BOOLEAN Attempted) {
   LogContainment();
   GuLog("FINAL status=%#llx stage=%s attempted=%u driver_release=1 clean=0 containment=%#llx pci_available=%u\n",
     (unsigned long long)Status,Stage,Attempted,(unsigned long long)contained,(unsigned)(Gu.pci!=NULL));
+  GuLogFlush();
   Halt();
 }
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE Image,EFI_SYSTEM_TABLE *St) {
@@ -524,6 +525,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE Image,EFI_SYSTEM_TABLE *St) {
   Stage="final-cold";status=Step(ColdCheck());if(EFI_ERROR(status))goto finish;
   if(!Gu.profile_verified || Gu.fault){status=EFI_ACCESS_DENIED;goto finish;}
   GuLogText("ARMED: one transaction is starting. Do not reset or remove the USB.\n");
+  GuLogFlush();
   if(!GuLogReady()){status=EFI_DEVICE_ERROR;goto finish;}
 #ifdef GU_HEADLESS_RESEARCH
   /* File callbacks may change devices; no log/output between this gate and core. */
@@ -540,6 +542,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE Image,EFI_SYSTEM_TABLE *St) {
   LogContainment();
   GuLog("transaction result=%d containment=%#llx started=%u quiesced=%u fault=%u retained=%u maps=%u FLR=%u\n",
     result,(unsigned long long)contained,Gu.started,Gu.quiesced,Gu.fault,Gu.retained,Gu.dma_count,Gu.flrs);
+  GuLogFlush();
   if(EFI_ERROR(contained) || !GuSafeToReturn() || Gu.allocations || (Gu.started && result))Halt();
   gpu_unlock_610_release_shared(&shared);Gu.armed=FALSE;
   status=result?EFI_DEVICE_ERROR:EFI_SUCCESS;
@@ -547,8 +550,10 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE Image,EFI_SYSTEM_TABLE *St) {
   if(release_attempted && (EFI_ERROR(status) || Gu.fault))ReleaseHalt(status,attempted);
   if(attempted && !GuSafeToReturn())Halt();
   Gu.armed=FALSE;
-  if(GuLogReady())GuLog("FINAL status=%#llx stage=%s attempted=%u driver_release=%u clean=%u\n",(unsigned long long)status,Stage,attempted,release_attempted,GuSafeToReturn());
-  else GuConsole("Preflight or logging failed; no new attempt will start.\n");
+  if(GuLogReady()){
+    GuLog("FINAL status=%#llx stage=%s attempted=%u driver_release=%u clean=%u\n",(unsigned long long)status,Stage,attempted,release_attempted,GuSafeToReturn());
+    GuLogFlush();
+  } else GuConsole("Preflight or logging failed; no new attempt will start.\n");
   if(!GuLogReady()){status=EFI_DEVICE_ERROR;if(release_attempted)ReleaseHalt(status,attempted);if(Gu.started)Halt();}
   if(attempted && !GuSafeToReturn())Halt();
   EFI_STATUS closed=GuIoClose();

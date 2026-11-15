@@ -64,6 +64,10 @@ static EFI_STATUS EFIAPI HeadWrite(EFI_FILE_PROTOCOL *f,UINTN *n,VOID *data) {
   if(Case==13 && !strncmp(data,"ARMED: one transaction",22))registers[SS0/4]^=1;
   return file_write(f,n,data);
 }
+static EFI_STATUS EFIAPI HeadFlush(EFI_FILE_PROTOCOL *f) {
+  if(Case==16)return EFI_WARN_UNKNOWN_GLYPH;
+  return file_flush(f);
+}
 static VOID HeadSetup(int mode) {
   entry_setup(mode==7?APP_FLUSH:APP_SUCCESS,0x03000062,6);Case=mode;Reads=Outputs=0;
   LatePending=LateDelivered=LatePhysical=FALSE;
@@ -78,11 +82,12 @@ static VOID HeadSetup(int mode) {
   bs.HandleProtocol=HeadHandle;bs.LocateHandleBuffer=HeadLocate;bs.OpenProtocolInformation=HeadOpens;
   bs.FreePool=HeadFree;bs.RestoreTPL=HeadRestore;
   files[3].protocol.Write=HeadWrite;
+  files[3].protocol.Flush=HeadFlush;
   if(mode==3)modes[1].FrameBufferBase=0x123000;
 }
 int main(int argc,char **argv) {
   CHECK(argc==4);exact_load(argv[1],argv[2]);load_fixture_assets(argv[1],argv[3]);memcpy(originals,GuAssets,sizeof(originals));
-  for(int mode=0;mode<=15;mode++) {
+  for(int mode=0;mode<=16;mode++) {
     HeadSetup(mode);EFI_STATUS s=run_app();
     if(mode==0 || mode==2) {
       CHECK(s==EFI_SUCCESS && Reads==30 && fake.flrs==1 && fake.gsp_starts==1 && fake.sec2_starts==1);
