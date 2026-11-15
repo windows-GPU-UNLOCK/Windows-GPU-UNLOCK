@@ -68,7 +68,7 @@ static EFI_GUID PathGuidL=EFI_DEVICE_PATH_PROTOCOL_GUID;
 static EFI_GUID GopGuidL=EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
 static EFI_SYSTEM_TABLE *SysT;
 static UINTN DumpIndex;
-static CHAR16 ImgPrefix[]=L"\\RTX3090-UNLOCK\\IMG";
+static CHAR16 ImgPrefix[]=L"\\IMG";
 
 #ifdef GU_PROBE_PRESERVE_CAPTURE
 /* No CREATE flag until absence was confirmed. Never replace an earlier capture.
@@ -148,10 +148,10 @@ static VOID ProbeCaps(CAPTURE *c,EFI_PCI_IO_PROTOCOL *io) {
 #if defined(GU_PROBE_GENERIC) || defined(GU_PROBE_DUMP_PROM)
 static VOID DumpProm(CAPTURE *c,EFI_FILE_PROTOCOL *root,UINT8 *page) {
 #ifdef GU_PROBE_PRESERVE_CAPTURE
-  if(!NewDump(c,root,L"\\RTX3090-UNLOCK\\PROM.BIN"))return;
+  if(!NewDump(c,root,L"\\PROM.BIN"))return;
 #endif
   EFI_FILE_PROTOCOL *f=NULL;
-  EFI_STATUS s=root->Open(root,&f,L"\\RTX3090-UNLOCK\\PROM.BIN",EFI_FILE_MODE_READ|EFI_FILE_MODE_WRITE|EFI_FILE_MODE_CREATE,0);
+  EFI_STATUS s=root->Open(root,&f,L"\\PROM.BIN",EFI_FILE_MODE_READ|EFI_FILE_MODE_WRITE|EFI_FILE_MODE_CREATE,0);
   if(s!=EFI_SUCCESS||!f){Problem(c,"prom-open",s);return;}
   if(!f->Write || !f->Close){Problem(c,"prom-file-methods",EFI_UNSUPPORTED);return;}
   UINTN n=0x100000;s=f->Write(f,&n,page);
@@ -171,7 +171,8 @@ static VOID DumpProm(CAPTURE *c,EFI_FILE_PROTOCOL *root,UINT8 *page) {
 static BOOLEAN ProbeEnvelope(CAPTURE *c,EFI_PCI_IO_PROTOCOL *io,const UINT32 *cfg) {
 #ifdef GU_PROBE_GENERIC
   BOOLEAN identity=cfg[0]==0x220410deU || cfg[0]==0x220310deU ||
-    cfg[0]==0x248710deU || cfg[0]==0x250410deU || cfg[0]==0x248410deU || cfg[0]==0x24c910deU || cfg[0]==0x220a10deU;
+    cfg[0]==0x248710deU || cfg[0]==0x250410deU || cfg[0]==0x248410deU || cfg[0]==0x24c910deU || cfg[0]==0x220a10deU ||
+    cfg[0]==0x249d10deU;
 #else
   BOOLEAN identity=cfg[0]==GU_BOARD_ID && cfg[11]==GU_BOARD_SUBSYSTEM;
 #ifdef GU_BAR0_BASE
@@ -179,7 +180,10 @@ static BOOLEAN ProbeEnvelope(CAPTURE *c,EFI_PCI_IO_PROTOCOL *io,const UINT32 *cf
 #endif
 #endif
   if(!identity || cfg[2]!=0x030000a1U ||
-     (cfg[1]&6U)!=2U || !cfg[4] || (cfg[4]&0xffffffU) || !io->GetBarAttributes || !io->Mem.Read)return FALSE;
+#ifndef GU_PROBE_ENABLE_MEMORY
+     (cfg[1]&6U)!=2U ||
+#endif
+     !cfg[4] || (cfg[4]&0xffffffU) || !io->GetBarAttributes || !io->Mem.Read)return FALSE;
   VOID *raw=NULL;
   EFI_FREE_POOL release=c->Table->BootServices->FreePool;
   if(!release)return FALSE;
@@ -241,9 +245,38 @@ static VOID ProbeBar(CAPTURE *c,EFI_PCI_IO_PROTOCOL *io,UINT32 bar,EFI_FILE_PROT
    * any release instead of stopping mid-release. A protocol call, so it precedes the recheck. */
   UINT64 pciAttributes=0;
   EFI_STATUS attributesStatus=io->Attributes?io->Attributes(io,EfiPciIoAttributeOperationGet,0,&pciAttributes):EFI_UNSUPPORTED;
+#ifdef GU_PROBE_ENABLE_MEMORY
+  /* MUXless hybrid: PCI COMMAND often reads 0x0000 pre-OS (memory decode OFF),
+   * so BAR0 MMIO/PROM cannot be read without first REVERSIBLY enabling memory.
+   * Save COMMAND, enable MEM|BME via PciIo->Attributes(Enable), read; the
+   * firmware's restore step (and ownership backoff) returns COMMAND to zero.
+   * Nothing in device memory is written. */
+  UINT16 savedCommand=0; EFI_STATUS savedCmdStatus=EFI_UNSUPPORTED;
+  if(io->Pci.Read) savedCmdStatus=io->Pci.Read(io,EfiPciIoWidthUint16,0x04,1,&savedCommand);
+  UINT64 enableAttr=EFI_PCI_IO_ATTRIBUTE_MEMORY|EFI_PCI_IO_ATTRIBUTE_BUS_MASTER;
+  EFI_STATUS enableStatus=io->Attributes?io->Attributes(io,EfiPciIoAttributeOperationEnable,enableAttr,NULL):EFI_UNSUPPORTED;
+  UINT16 afterEnableCommand=0; EFI_STATUS afterEnableStatus=EFI_UNSUPPORTED;
+  if(io->Pci.Read) afterEnableStatus=io->Pci.Read(io,EfiPciIoWidthUint16,0x04,1,&afterEnableCommand);
+  /* Re-sample cfg so ProbeUnchanged sees the new COMMAND we just set, not the
+   * zero captured earlier. Only the first word (COMMAND/STATUS) legitimately
+   * changed; everything else must still match. */
+  UINT32 cfgLive[64];
+  if(io->Pci.Read && io->Pci.Read(io,EfiPciIoWidthUint32,0,64,cfgLive)==EFI_SUCCESS) {
+    UINT32 *mcfg=(UINT32 *)(UINTN)cfg;
+    mcfg[1]=cfgLive[1];
+  }
+#endif
   if(!GuProbePinSame(c,&pin) || !ProbeUnchanged(c,handle,io,cfg,expectedSegment,expectedBus) || !GuProbePinSame(c,&pin)) {
+#ifdef GU_PROBE_ENABLE_MEMORY
+    if(io->Attributes){UINT64 restore=enableAttr; (VOID)io->Attributes(io,EfiPciIoAttributeOperationDisable,restore,NULL);}
+#endif
     pin.Free(page);Problem(c,"probe-identity-changed",EFI_NOT_READY);return;
   }
+#ifdef GU_PROBE_ENABLE_MEMORY
+  Text(c,"probe-enable savedCmd=0x");Hex(c,savedCommand,4);Text(c," savedStatus=0x");Hex(c,savedCmdStatus,16);
+  Text(c," enableStatus=0x");Hex(c,enableStatus,16);
+  Text(c," afterCmd=0x");Hex(c,afterEnableCommand,4);Text(c," afterStatus=0x");Hex(c,afterEnableStatus,16);End(c);
+#endif
 #else
   (void)handle;(void)cfg;(void)expectedSegment;(void)expectedBus;
 #endif
@@ -302,6 +335,18 @@ static VOID ProbeBar(CAPTURE *c,EFI_PCI_IO_PROTOCOL *io,UINT32 bar,EFI_FILE_PROT
     if(c->Table->BootServices->FreePool(page)!=EFI_SUCCESS)Problem(c,"prom-free",EFI_DEVICE_ERROR);
 #endif
   } else Problem(c,"prom-alloc",s==EFI_SUCCESS?EFI_OUT_OF_RESOURCES:s);
+#ifdef GU_PROBE_ENABLE_MEMORY
+  /* Reversibly return COMMAND to the enable-state it had before our Enable call.
+   * Disable(MEM|BME) is a no-op on bits that were already clear, so when the
+   * firmware's pre-OS state was COMMAND=0, this leaves COMMAND=0 again. */
+  if(io->Attributes){
+    EFI_STATUS disableStatus=io->Attributes(io,EfiPciIoAttributeOperationDisable,EFI_PCI_IO_ATTRIBUTE_MEMORY|EFI_PCI_IO_ATTRIBUTE_BUS_MASTER,NULL);
+    UINT16 restoredCommand=0xffff; EFI_STATUS restoredStatus=EFI_UNSUPPORTED;
+    if(io->Pci.Read) restoredStatus=io->Pci.Read(io,EfiPciIoWidthUint16,0x04,1,&restoredCommand);
+    Text(c,"probe-restore disableStatus=0x");Hex(c,disableStatus,16);
+    Text(c," restoredCmd=0x");Hex(c,restoredCommand,4);Text(c," restoredStatus=0x");Hex(c,restoredStatus,16);End(c);
+  }
+#endif
 }
 
 static VOID ProbeDrivers(CAPTURE *c,EFI_FILE_PROTOCOL *root) {

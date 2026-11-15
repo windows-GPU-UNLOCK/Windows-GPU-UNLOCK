@@ -59,7 +59,12 @@ BOOLEAN GuLogReady(VOID){return Report && !LogFault;}
 static BOOLEAN UsbPath(EFI_HANDLE Handle) {
   EFI_DEVICE_PATH_PROTOCOL *path=NULL;
   if(EFI_ERROR(Table->BootServices->HandleProtocol(Handle,&PathGuid,(VOID **)&path)) || !path)return FALSE;
-#if defined(GU_AUTOMATIC_BOOT) && !defined(GU_USB_MEDIA)
+#if defined(GU_A5X1_NO_DISPLAY)
+  /* Firmware USB boot paths vary on this laptop (the read-only probe needed the
+   * same relaxation). Assets are only read from, and the log only written to,
+   * this same boot volume, so accept it without requiring a USB messaging node. */
+  return TRUE;
+#elif defined(GU_AUTOMATIC_BOOT) && !defined(GU_USB_MEDIA)
   return GuPathIsPartition(path,&GuInternalPartition);
 #elif defined(GU_INTERNAL_BOOT) && !defined(GU_USB_MEDIA)
   return GuAllowedMediaPath(path,TRUE);
@@ -127,7 +132,7 @@ EFI_STATUS GuIoOpen(EFI_HANDLE Image,EFI_SYSTEM_TABLE *St) {
 #endif
     GuLog("RTX3090 AUTOMATIC INTERNAL UNLOCK\nAUTO%06u\nEsc cancels; exact hardware gates and one transaction only.\n",(unsigned)slot);
 #elif defined(GU_EXPERIMENTAL_3090)
-    GuLog("RTX3090 AMD EXPERIMENTAL MANUAL UNLOCK\nRUN%02u\nManual U starts one hardware transaction; Esc or timeout cancels. Hardware success unverified.\n",(unsigned)slot);
+    GuLog("%s AMD EXPERIMENTAL MANUAL UNLOCK\nRUN%02u\nManual U starts one hardware transaction; Esc or timeout cancels. Hardware success unverified.\n",GU_PROFILE_NAME,(unsigned)slot);
 #else
     GuLog("RTX3090 AMD read-only cold-state preflight\nRUN%02u\nCannot arm: GPU writes, DMA, reset and driver release are blocked.\n",(unsigned)slot);
 #endif

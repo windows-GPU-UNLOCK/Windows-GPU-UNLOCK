@@ -18,10 +18,10 @@
 #error GPU family and firmware must be derived from the selected machine profile
 #endif
 
-#if (defined(GU_PROFILE_B650M_3090FE) + defined(GU_PROFILE_B660M_3070TI) + defined(GU_PROFILE_B660M_3090TI) + defined(GU_PROFILE_X870_3090TI) + defined(GU_PROFILE_B660PLUS_3060) + defined(GU_PROFILE_LOCAL) + defined(GU_PROFILE_H610M_3060) + defined(GU_PROFILE_PROBE_H610M_3060)) > 1
+#if (defined(GU_PROFILE_B650M_3090FE) + defined(GU_PROFILE_B660M_3070TI) + defined(GU_PROFILE_B660M_3090TI) + defined(GU_PROFILE_X870_3090TI) + defined(GU_PROFILE_B660PLUS_3060) + defined(GU_PROFILE_LOCAL) + defined(GU_PROFILE_H610M_3060) + defined(GU_PROFILE_PROBE_H610M_3060) + defined(GU_PROFILE_A5X1_3070M)) > 1
 #error Select exactly one machine profile
 #endif
-#if !defined(GU_PROFILE_B650M_3090FE) && !defined(GU_PROFILE_B660M_3070TI) && !defined(GU_PROFILE_B660M_3090TI) && !defined(GU_PROFILE_X870_3090TI) && !defined(GU_PROFILE_B660PLUS_3060) && !defined(GU_PROFILE_LOCAL) && !defined(GU_PROFILE_H610M_3060) && !defined(GU_PROFILE_PROBE_H610M_3060)
+#if !defined(GU_PROFILE_B650M_3090FE) && !defined(GU_PROFILE_B660M_3070TI) && !defined(GU_PROFILE_B660M_3090TI) && !defined(GU_PROFILE_X870_3090TI) && !defined(GU_PROFILE_B660PLUS_3060) && !defined(GU_PROFILE_LOCAL) && !defined(GU_PROFILE_H610M_3060) && !defined(GU_PROFILE_PROBE_H610M_3060) && !defined(GU_PROFILE_A5X1_3070M)
 #define GU_PROFILE_B650M_3090FE 1
 #endif
 
@@ -164,6 +164,32 @@
 #define GU_ROOT_PORT_DEVICE 1U
 #define GU_ROOT_PORT_FUNCTION 0U
 /* 36-byte display device path: ACPI root, PciRoot(0), Pci(1,0), endpoint. */
+#define GU_RTX_PATH_BYTES \
+  2,1,12,0,0xd0,0x41,3,10,0,0,0,0,1,1,6,0,0,1,1,1,6,0,0,0,2,3,8,0,32,3,1,128,127,255,4,0
+#define GU_FIRMWARE_PROFILE GU_FIRMWARE_AMI_B660M_4003
+
+#elif defined(GU_PROFILE_A5X1_3070M)
+
+/* GIGABYTE A5 X1 (Clevo board, INSYDE BIOS 1.07.FB08), Ryzen 9 5900HX + Radeon
+ * iGPU driving the only display (MUXless Optimus), RTX 3070 Laptop GPU
+ * (GA104, 10de:249d, subsystem 1558:50f2). Constants from this machine's own
+ * read-only probe capture (GPUDIAG00.TXT / PROM.BIN, 2026-10-30). UNREVIEWED.
+ * The dGPU drives NO display: GU_A5X1_NO_DISPLAY relaxes DisplayCheck, and the
+ * pre-OS COMMAND=0 state means memory must be reversibly enabled before the
+ * config check (handled in app.c FindTarget under GU_A5X1_NO_DISPLAY). */
+#define GU_PROFILE_NAME "GIGABYTE-A5-X1-RC45AX-RTX3070-LAPTOP"
+#define GU_A5X1_NO_DISPLAY 1
+#define GU_BOARD_ID 0x249d10deU
+#define GU_BOARD_SUBSYSTEM 0x50f21558U
+#define GU_BAR0_BASE 0xd0000000ULL
+#define GU_BAR0_END 0xd0ffffffULL
+#define GU_DEVICE_MEMORY_SIZE 0x2000U
+#define GU_GPU_FAMILY GU_GPU_FAMILY_GA104
+#define GU_PROM_SHA256 "fe71adc30985bb72015038841a4fa1ea462967ebf22006625bbfd4fb045c78e2"
+#define GU_ROOT_PORT_DEVICE 1U
+#define GU_ROOT_PORT_FUNCTION 0U
+/* Placeholder only: the dGPU drives no display, so GuDisplayPath is never
+ * consulted for this profile. Kept so shared code that references it compiles. */
 #define GU_RTX_PATH_BYTES \
   2,1,12,0,0xd0,0x41,3,10,0,0,0,0,1,1,6,0,0,1,1,1,6,0,0,0,2,3,8,0,32,3,1,128,127,255,4,0
 #define GU_FIRMWARE_PROFILE GU_FIRMWARE_AMI_B660M_4003
