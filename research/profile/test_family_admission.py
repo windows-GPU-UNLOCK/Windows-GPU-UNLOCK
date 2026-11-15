@@ -49,6 +49,8 @@ class FamilyAdmissionTests(unittest.TestCase):
     def test_driver_code_is_bound_to_family(self):
         # Hashing is stubbed to isolate the admission decision, not prove driver bytes.
         cases=((0x220410de,0xb72000a1,0x6000,('60008','60009','60010','6000a')),
+               # Same chip as 2204, but 6000a is not admitted for 2203.
+               (0x220310de,0xb72000a1,0x6000,('60008','60009','60010')),
                (0x248710de,0xb74000a1,0x3000,('60010',)),
                (0x250410de,0xb76000a1,0x3000,('60010',)),
                (0x248410de,0xb74000a1,0x2000,('60009',)),
@@ -60,7 +62,8 @@ class FamilyAdmissionTests(unittest.TestCase):
                 text = data.synthetic_capture(board=board, chip=chip,
                                               memory=memory)
                 text = re.sub(r'version=0x600(?:09|10|15)', 'version=0x'+code['version'], text)
-                with tempfile.TemporaryDirectory() as folder:
+                with self.subTest(board=f'{board:08x}', version=code['version'], sha256=code['text_sha256']), \
+                        tempfile.TemporaryDirectory() as folder:
                     diag=Path(folder)/'DIAG00.TXT';diag.write_text(text)
                     with patch.object(data.mp, 'code_hash', return_value={'sha256':code['text_sha256'], 'bytes':0x500}):
                         known=any(code['version']==item['version'] and code['text_sha256']==item['text_sha256']
