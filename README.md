@@ -249,6 +249,11 @@ experimental bridge-chain support still requires per-machine validation.
 LOCAL discovery and generation can pin a unique target on any 16-bit PCI segment.
 Prepare, release and PCI access must match that segment as well as the captured bus;
 nonzero-segment operation is experimental and still needs physical validation.
+Recent host-only aggregate-release research extends synthetic ancestry testing to
+PCI-node depths 2–16, both supported ACPI root types and selected segment values.
+Thirty MSVC-hosted RAM routes and two mismatch-history routes passed. These results
+do not add a supported machine or qualify a physical route; native Clang guard and
+mutation checks remain pending. See the [PCI decode research log](research/pci-decode/README.md).
 Single-RTX systems may have no iGPU or separate EDID driver on the non-aggregate path.
 Without a separate EDID driver, non-aggregate LOCAL generation/replay accepts one
 to four unique NVIDIA display children. Three/four-child paths remain experimental;

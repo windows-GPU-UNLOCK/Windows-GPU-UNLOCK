@@ -234,6 +234,11 @@ PCI 부모 위치를 고정·재검사합니다. 이 실험적 브리지 경로 
 로컬 탐색과 프로필 생성은 16비트 PCI 세그먼트 어디에 있는 단일 대상을 고정할 수 있습니다.
 준비·해제·PCI 접근에서도 캡처한 세그먼트와 버스가 일치해야 합니다.
 세그먼트가 0이 아닌 구성은 실험적 지원이며 실기기 검증이 필요합니다.
+최근 host-only aggregate-release 연구는 합성 PCI 경로의 2~16개 노드,
+두 ACPI 루트 유형과 일부 세그먼트 값을 시험했습니다. MSVC RAM 시험 30개 경로와
+mismatch 이력 2개 경로가 통과했지만, 새 지원 장비나 실기기 경로 검증을 뜻하지는 않습니다.
+native Clang guard·mutation 시험은 남아 있습니다. 자세한 범위는
+[PCI decode 연구 기록](research/pci-decode/README.md)을 참고하세요.
 내장 그래픽이나 별도 EDID 드라이버가
 없는 단일 RTX 구성을 처리합니다(EDID 생략은 비 aggregate 경로만 가능).
 별도 EDID 드라이버가 없는 비 aggregate 로컬 프로필은 고유 NVIDIA 디스플레이 자식
