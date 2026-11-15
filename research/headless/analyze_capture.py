@@ -55,10 +55,17 @@ def ownership_observations(records):
 
 
 def device_path(block):
-    rows = re.findall(r'^path-node raw=([0-9a-f]+)$', block, re.M)
+    # Collect declarations before validating: filtering for valid hex silently
+    # drops corrupt evidence and can invent a complete path.
+    rows = [line for line in block.split('\n') if line.startswith('path-node')]
     if not rows:
         return None
-    nodes = [bytes.fromhex(row) for row in rows]
+    nodes = []
+    for row in rows:
+        match = re.fullmatch(r'path-node raw=((?:[0-9a-f]{2})+)', row)
+        if not match:
+            raise ValueError('Malformed device path node')
+        nodes.append(bytes.fromhex(match[1]))
     for i, node in enumerate(nodes):
         if len(node) < 4 or int.from_bytes(node[2:4], 'little') != len(node):
             raise ValueError('Malformed device path node')
@@ -129,9 +136,12 @@ def analyze(raw, capture_index=None):
     for h, block in records:
         if 'protocol guid=' + GOP not in block:
             continue
-        mode = re.search(r'^gop framebuffer=(0x[0-9a-f]+) bytes=(0x[0-9a-f]+)', block, re.M)
+        modes = [line for line in block.split('\n') if line.startswith('gop framebuffer')]
+        # Legacy fixtures omit the producer's mode/max-mode observation pair.
+        mode = re.fullmatch(r'gop framebuffer=(0x[0-9a-f]+) bytes=(0x[0-9a-f]+)'
+                            r'(?: mode=0x[0-9a-f]+ max-mode=0x[0-9a-f]+)?', modes[0]) if len(modes) == 1 else None
         if not mode:
-            raise ValueError('Missing GOP mode record')
+            raise ValueError('Missing, malformed or ambiguous GOP mode record')
         fb, size = int(mode[1], 16), int(mode[2], 16)
         path = device_path(block)
         if not path and not fb and not size and h == console[1]:
