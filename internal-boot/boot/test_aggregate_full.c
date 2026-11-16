@@ -43,6 +43,15 @@ enum {PCI=1,PRIMARY,SIBLING,AGG,CONSOLE,INPUT,NV,EDID,COMBO,GFX,TEXT_DRIVER,
 #define HANDLE_LIMIT APP
 #define STDERR_HANDLE CONSOLE
 #endif
+#if defined(GU_B760M_EXTRA_TEST)
+#define EXTRA (HANDLE_LIMIT+1U)
+#define EXTRA_IMAGE (HANDLE_LIMIT+2U)
+static EFI_DRIVER_BINDING_PROTOCOL ExtraBinding;
+static EFI_LOADED_IMAGE_PROTOCOL ExtraImage;
+static UINT8 ExtraImageMemory[0x3d200],ExtraImagePath[32],EdidActiveDummy;
+static UINTN ExtraCalls;
+static EFI_GUID EdidActiveTestGuid=EFI_EDID_ACTIVE_PROTOCOL_GUID;
+#endif
 #define H(n) ((EFI_HANDLE)(UINTN)(n))
 #define TEST_CONTROLLER_BYTES (GU_RTX_DISPLAY_BYTES-12U)
 static GRAPH Live;
@@ -182,6 +191,11 @@ static EFI_STATUS EFIAPI Handle(EFI_HANDLE h,EFI_GUID *guid,VOID **out) {
     if(GuGuidEqual(guid,&BindingGuid) && h==H(DriverHandle(i)))*out=&Bindings[i];
     if(GuGuidEqual(guid,&ImageGuid) && h==H(ImageHandle(i)))*out=&Images[i];
   }
+#if defined(GU_B760M_EXTRA_TEST)
+  if(GuGuidEqual(guid,&BindingGuid) && h==H(EXTRA))*out=&ExtraBinding;
+  if(GuGuidEqual(guid,&ImageGuid) && h==H(EXTRA_IMAGE))*out=&ExtraImage;
+  if(GuGuidEqual(guid,&EdidActiveTestGuid) && h==H(PRIMARY))*out=&EdidActiveDummy;
+#endif
 #ifdef GU_AGGREGATE_CAPTURE_FIXTURE
   BOOLEAN hidden=(GpuGone && (h==H(PRIMARY) || h==H(SIBLING)) &&
     (GuGuidEqual(guid,&GopGuid) || GuGuidEqual(guid,&PathGuid) || GuGuidEqual(guid,&EdidGuid))) ||
@@ -256,6 +270,16 @@ static EFI_STATUS EFIAPI Close(EFI_HANDLE h,EFI_GUID *guid,EFI_HANDLE agent,EFI_
 }
 static EFI_STATUS EFIAPI Disconnect(EFI_HANDLE h,EFI_HANDLE agent,EFI_HANDLE child) {
   Check(!child,"no arbitrary child request");Calls++;
+#if defined(GU_B760M_EXTRA_TEST)
+  if(agent==H(EXTRA)) {
+    Check(h==H(PCI),"extra consumer detach from the GPU PCI handle");
+    ExtraCalls++;
+    UINTN keep=0;
+    for(UINTN i=0;i<Live.Count;i++)if(Live.Edges[i].Agent!=H(EXTRA))Live.Edges[keep++]=Live.Edges[i];
+    Live.Count=keep;
+    return EFI_SUCCESS;
+  }
+#endif
   if(agent==H(EDID)) {
     Check(h==H(EdidCalls?SIBLING:PRIMARY) && EdidCalls<TEST_CHILDREN && !NvCalls,"EDID child order before NVIDIA");
     EdidCalls++;
@@ -297,6 +321,9 @@ static EFI_STATUS Log(VOID *context,const char *event,EFI_STATUS status) {
 static void Setup(void) {
   memset(&Boot,0,sizeof(Boot));memset(&Table,0,sizeof(Table));memset(&Io,0,sizeof(Io));Live.Count=0;
   Calls=EdidCalls=NvCalls=Enables=Claims=Closes=0;GpuGone=ScenarioReached=FALSE;
+#if defined(GU_B760M_EXTRA_TEST)
+  ExtraCalls=0;
+#endif
   ParentDrift=PathFault=SegmentDrift=FALSE;memset(FaultDisplayPath,0,sizeof(FaultDisplayPath));
   FirstError=NULL;memset(NvMemory,0,sizeof(NvMemory));memset(EdidMemory,0,sizeof(EdidMemory));
   Boot.AllocatePool=Allocate;Boot.FreePool=Free;Boot.RaiseTPL=Raise;Boot.RestoreTPL=Restore;
@@ -369,6 +396,22 @@ static void Setup(void) {
   Edge(AGG,GFX,AGG,&GopGuid,16);Edge(AGG,TEXT_DRIVER,AGG,&TextGuid,16);Edge(AGG,TEXT_DRIVER,CONSOLE,&TextGuid,8);
 #endif
   Edge(PROTECTED,OBSERVER,PROTECTED,&PrivateGuid,16);
+#if defined(GU_B760M_EXTRA_TEST)
+  ExtraBinding=(EFI_DRIVER_BINDING_PROTOCOL){0};
+  ExtraBinding.DriverBindingHandle=H(EXTRA);
+  ExtraBinding.ImageHandle=H(EXTRA_IMAGE);
+  ExtraBinding.Version=GU_B760M_EXTRA_PRESENT==2?0x1cU:0x1bU;
+  ExtraBinding.Stop=(EFI_DRIVER_BINDING_STOP)((UINT8 *)ExtraImageMemory+0x1000);
+  ExtraImage=(EFI_LOADED_IMAGE_PROTOCOL){0};
+  ExtraImage.ImageBase=ExtraImageMemory;
+  ExtraImage.ImageSize=GU_B760M_EXTRA_PRESENT==2?0x3d1ffU:0x3d200U;
+  ExtraImage.ImageCodeType=EfiBootServicesCode;
+  ExtraImage.FilePath=(VOID *)ExtraImagePath;
+#if GU_B760M_EXTRA_PRESENT
+  Edge(PCI,EXTRA,PCI,&PathGuid,EFI_OPEN_PROTOCOL_BY_DRIVER_EXCLUSIVE);
+  Edge(PRIMARY,EXTRA,PRIMARY,&PathGuid,EFI_OPEN_PROTOCOL_BY_DRIVER_EXCLUSIVE);
+#endif
+#endif
 }
 static void LoadExact(const char *path,VOID *out,UINTN bytes) {
   FILE *file=fopen(path,"rb");Check(file!=NULL,"input image exists");
@@ -380,6 +423,31 @@ int main(int argc,char **argv) {
   Check(argc==4,"LOCAL replay requires captured EDID, NVIDIA and PROM images");
 #else
   Check(argc==1 || argc==4,"optional EDID, NVIDIA and PROM images");
+#endif
+#if defined(GU_B760M_EXTRA_TEST)
+  Check(argc==4,"B760M optional-consumer replay requires EDID, NVIDIA and PROM images");
+  Setup();
+  LoadExact(argv[1],EdidMemory,sizeof(EdidMemory));
+  LoadExact(argv[2],NvMemory,sizeof(NvMemory));
+  LoadExact(argv[3],PromMemory,sizeof(PromMemory));
+  EFI_STATUS b760m_status=GuPrepareConsole(&Table,Log,NULL);
+  if(GU_B760M_EXTRA_PRESENT==2) {
+    Check(b760m_status!=EFI_SUCCESS && FirstError &&
+      (!strcmp(FirstError,"preflight-consumers-failed") || !strcmp(FirstError,"console-prepare-preflight")),
+      "bad optional consumer refused before release");
+    printf("PASS B760M optional consumer refusal: %u checks; RAM-only\n",Checks);
+    return 0;
+  }
+  Check(b760m_status==EFI_SUCCESS && !Calls,"B760M prepare performs zero detach calls");
+  b760m_status=GuReleaseGop(&Table,H(APP),Log,NULL);
+  Check(b760m_status==EFI_SUCCESS,"B760M release succeeds");
+  Check(Calls==TEST_CHILDREN+1+(GU_B760M_EXTRA_PRESENT?1:0) &&
+    EdidCalls==TEST_CHILDREN && NvCalls==1 && ExtraCalls==(GU_B760M_EXTRA_PRESENT?1:0),
+    "B760M stage sequence covers EDID, optional consumer and NVIDIA");
+  Check(Enables==1 && Claims==1 && Closes==1 && !Full.Owned,"B760M cleanup reaches a closed claim");
+  Check(GuVerifyReleased(&Table,TRUE)==EFI_SUCCESS,"B760M released state remains valid");
+  printf("PASS B760M optional consumer %s: %u checks; RAM-only\n",GU_B760M_EXTRA_PRESENT?"present":"absent",Checks);
+  return 0;
 #endif
   for(Mode=0;Mode<24;Mode++) {
     Setup();

@@ -226,10 +226,10 @@ differences. The profile remains exact-machine only.
 | Selector profile | `entryLatchedSs1Full`; targets SS0 `0x88888888`, SS1 `0x8` |
 
 Each attended run recorded one unlock transaction, a direct Windows handoff and
-display recovery. The current source's verified pair is the 2026-11-11 wrapper
-`96CBD5C2B006E37D6135F18347E023D674DD8E241D8A17B3DD3A07F5D4EC89D6`
-and child `218E2E4C1B65047EC43ED7D3BE10F779B715D01B3F419511CABC057FBCAE25B3`.
-Earlier attended pairs are 2026-10-26 `64D887E4…`/`1265F152…`, 2026-11-03
+display recovery. The current source's child remains `218E2E4C1B65047EC43ED7D3BE10F779B715D01B3F419511CABC057FBCAE25B3`;
+the 2026-11-11 run verified the pre-hardening wrapper `96CBD5C2B006E37D6135F18347E023D674DD8E241D8A17B3DD3A07F5D4EC89D6`.
+The hardened wrapper builds as `1C18772A9BC82EE1D54ABEECAAE96302F794DACBD458E7332598E4481945DFED` and its attended cold boot is
+pending. Earlier attended pairs are 2026-10-26 `64D887E4…`/`1265F152…`, 2026-11-03
 `476E5729…`/`4BCB8FCE…` and 2026-11-05 `9632EA21…`/`218E2E4C…`; each applies
 to its recorded source. The 2026-10-26 and 2026-11-03 builds used
 clang/lld-link 23.1.4; the 2026-11-05 and 2026-11-11 builds use the pinned

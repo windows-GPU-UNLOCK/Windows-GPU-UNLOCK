@@ -29,7 +29,13 @@ def main():
     parser.add_argument('--aggregate', action='store_true', help='Use the separate aggregate GOP frontend')
     parser.add_argument('--iomem', action='store_true', help='Model a coherent command3/cache300 release origin')
     parser.add_argument('--amd-retained', action='store_true', help='Use the fixed B650M retained AMD frontend')
+    parser.add_argument('--b760m-extra', choices=('present', 'absent', 'refuse'),
+                        help='Host-only B760M optional-consumer topology replay (aggregate, EDID driver, one child)')
     args = parser.parse_args()
+    if args.b760m_extra:
+        args.aggregate = True
+        args.edid_driver = True
+        args.children = 1
     if args.aggregate and not args.edid_driver:
         parser.error('The aggregate research frontend requires --edid-driver')
     if args.amd_retained and (args.aggregate or not args.edid_driver or args.children > 2):
@@ -89,6 +95,34 @@ def main():
         if r.returncode:
             raise RuntimeError(name + ': ' + (r.stdout + r.stderr)[-2500:])
         return r.stdout.strip()
+
+    if args.b760m_extra:
+        boot = ROOT / 'internal-boot/boot'
+        present = {'present': 1, 'absent': 0, 'refuse': 2}[args.b760m_extra]
+        b760m_overlay = out / 'b760m-overlay.json'
+        b760m_overlay.write_text(json.dumps({'version': 0, 'roots': [
+            {'type': 'file', 'name': str(ROOT / 'internal-boot/unlock/profile-local.h'),
+             'external-contents': str(header), 'use-external-name': False},
+            {'type': 'file', 'name': str(boot / 'platform-config.h'),
+             'external-contents': str(platform), 'use-external-name': False}]}), encoding='utf-8')
+        flags = ['-std=c11', '-O1', '-Wall', '-Wextra', '-Werror', '-Wno-unused-function',
+            '-D_CRT_SECURE_NO_WARNINGS', '-DGU_PROFILE_LOCAL', '-DGU_HEADLESS_RESEARCH',
+            '-DGU_SINGLE_RTX_CONSOLE', '-DGU_FULL_UNLOCK', '-DGU_AUTOMATIC_BOOT',
+            '-DGU_FORCE_TOPO_B760M=1', '-DGU_B760M_EXTRA_TEST=1',
+            f'-DGU_B760M_EXTRA_PRESENT={present}', '-ivfsoverlay', str(b760m_overlay),
+            '-I' + str(ROOT / 'deps/edk2/MdePkg/Include'),
+            '-I' + str(ROOT / 'deps/edk2/MdePkg/Include/X64')]
+        sources = [boot / 'test_aggregate_full.c', boot / 'console-flow.c',
+            ROOT / 'internal-boot/unlock/checks.c', ROOT / 'internal-boot/unlock/sha256.c',
+            ROOT / 'research/pci-decode/efi-capture.c', ROOT / 'research/pci-decode/snapshot.c',
+            ROOT / 'research/pci-decode/stop-transition.c']
+        exe = out / 'b760m-extra.exe'
+        run('b760m-compile', [args.clang, *flags, *map(str, sources), '-o', str(exe)])
+        result = run('b760m-run', [str(exe), str(edid), str(nv), str(prom)])
+        (out / 'summary.json').write_text(json.dumps({'passed': True, 'ram_only': True,
+            'efi_executed': False, 'b760m_extra': args.b760m_extra, 'result': result}, indent=2), encoding='utf-8')
+        print(result)
+        return
 
     run('fixture', [sys.executable, '-I', str(ROOT / 'internal-boot/boot/make-console-fixture.py'),
         str(capture), *(['--amd-retained-multi'] if args.amd_retained else ['--single-rtx', '--no-igpu']),

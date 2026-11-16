@@ -379,8 +379,14 @@ static EFI_STATUS FullConsumers(const GRAPH *g) {
       if(e->Agent!=PreparedPlan.ExtraAgent)return EFI_ACCESS_DENIED;
       continue;
     }
-    if(GuGuidEqual(&e->Protocol,&EdidDiscoveredGuid) && e->Attributes==EFI_OPEN_PROTOCOL_BY_DRIVER && e->Controller==Full.Children[0] && e->Agent==PreparedPlan.EdidAgent){Full.EdidAgent=e->Agent;edid++;continue;}
-    if(GuGuidEqual(&e->Protocol,&GopGuid) && e->Attributes==GU_B760M_EXTRA_ATTR && e->Controller==PreparedPlan.Agg && e->Agent==PreparedPlan.ComboAgent){combo++;continue;}
+    if(GuGuidEqual(&e->Protocol,&EdidDiscoveredGuid) && e->Attributes==EFI_OPEN_PROTOCOL_BY_DRIVER && e->Controller==Full.Children[0] && e->Agent==PreparedPlan.EdidAgent){
+      if(e->Count!=1 || !e->Agent)return EFI_ACCESS_DENIED;
+      Full.EdidAgent=e->Agent;edid++;continue;
+    }
+    if(GuGuidEqual(&e->Protocol,&GopGuid) && e->Attributes==GU_B760M_EXTRA_ATTR && e->Controller==PreparedPlan.Agg && e->Agent==PreparedPlan.ComboAgent){
+      if(e->Count!=1 || !e->Agent)return EFI_ACCESS_DENIED;
+      combo++;continue;
+    }
 #endif
     if(e->Count!=1 || !e->Agent)return EFI_ACCESS_DENIED;
     if(GuGuidEqual(&e->Protocol,&EdidGuid) && e->Attributes==EFI_OPEN_PROTOCOL_BY_DRIVER && e->Controller==Full.Children[0] && e->Agent==PreparedPlan.EdidAgent){Full.EdidAgent=e->Agent;edid++;}

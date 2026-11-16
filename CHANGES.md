@@ -126,12 +126,15 @@
   2026-11-03 (`476E5729…`/`4BCB8FCE…`), 2026-11-05
   (`9632EA21…`/`218E2E4C…`) and 2026-11-11 (`96CBD5C2…`/`218E2E4C…`)
   each completed the unlock transaction, a direct Windows handoff and display
-  recovery. The current source's verified pair is the 2026-11-11 wrapper
-  `96CBD5C2B006E37D6135F18347E023D674DD8E241D8A17B3DD3A07F5D4EC89D6`
-  and child
+  recovery. The current source's child remains
   `218E2E4C1B65047EC43ED7D3BE10F779B715D01B3F419511CABC057FBCAE25B3`;
-  earlier pairs apply to their recorded sources. The 10-26/11-03 builds used
-  clang/lld-link 23.1.4; the 11-05/11-11 builds use the pinned 20.1.8.
+  the 2026-11-11 run verified the pre-hardening wrapper
+  `96CBD5C2B006E37D6135F18347E023D674DD8E241D8A17B3DD3A07F5D4EC89D6`.
+  The hardened wrapper builds as
+  `1C18772A9BC82EE1D54ABEECAAE96302F794DACBD458E7332598E4481945DFED`
+  and its attended cold boot is pending. Earlier pairs apply to their recorded
+  sources. The 10-26/11-03 builds used clang/lld-link 23.1.4; the 11-05/11-11
+  builds use the pinned 20.1.8.
 - Measured cuBLAS GEMM n=4096, FP32 accumulate: FP16 109.8 and BF16 113.2
   TFLOPS (locked 56.4/59.9); FP32 unchanged. One boot and one before/after
   pair; S3/resume, repeated automatic cold boots, games/ComfyUI and long-term

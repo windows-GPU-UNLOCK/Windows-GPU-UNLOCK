@@ -290,7 +290,12 @@
  * BY_DRIVER_EXCLUSIVE DevicePath opens on both GPU handles, and three child
  * links use the standard EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER attribute
  * (0x8). */
-#if defined(GU_PROFILE_B760M_3080LHR)
+/* Host-test overlay: model the B760M optional-consumer topology with the
+ * synthetic LOCAL profile. Production builds select GU_PROFILE_B760M_3080LHR. */
+#if defined(GU_FORCE_TOPO_B760M) && !defined(GU_PROFILE_LOCAL)
+#error GU_FORCE_TOPO_B760M is a host-test overlay for the local profile
+#endif
+#if defined(GU_PROFILE_B760M_3080LHR) || defined(GU_FORCE_TOPO_B760M)
 #define GU_TOPO_B760M 1
 #else
 #define GU_TOPO_B760M 0

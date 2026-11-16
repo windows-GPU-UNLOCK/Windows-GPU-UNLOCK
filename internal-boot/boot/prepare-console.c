@@ -280,8 +280,8 @@ static EFI_STATUS Displays(EFI_SYSTEM_TABLE *t,PLAN *p,BOOLEAN first) {
       b[n++]='-';b[n++]='h';
       for(int k=7;k>=0;k--)b[n++]="0123456789abcdef"[(((UINTN)handles[i]>>((k)*4))&0xf)];
       b[n++]='-';
-      const UINT8 *pb=(const UINT8 *)path;
-      for(int k=0;k<36;k++){b[n++]="0123456789abcdef"[(pb[k]>>4)&0xf];b[n++]="0123456789abcdef"[pb[k]&0xf];}
+      const UINT8 *pb=(const UINT8 *)path;UINTN plen=bl<36?bl:36;
+      for(UINTN k=0;k<plen;k++){b[n++]="0123456789abcdef"[(pb[k]>>4)&0xf];b[n++]="0123456789abcdef"[pb[k]&0xf];}
       b[n]=0;DispNote(b,EFI_SUCCESS);
       char c[16];UINTN m2=0;const char *r="disp-pf-";
       while(r[m2]){c[m2]=r[m2];m2++;}
