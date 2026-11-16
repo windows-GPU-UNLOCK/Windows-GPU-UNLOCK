@@ -6,6 +6,7 @@
 #include "decode-sync.h"
 
 static unsigned Checks;
+static BOOLEAN TestingReentry;
 static void Check(int ok,const char *label) {
   Checks++;if(!ok){fprintf(stderr,"FAIL %s\n",label);exit(1);}
 }
@@ -18,7 +19,13 @@ typedef struct {
   EFI_STATUS ReadStatus,DisableStatus;
 } MODEL;
 static void Reenter(MODEL *m) {
-  if(m->Reenter)Check(GuDecodeSync(&m->Transaction,&m->Ops,&m->Expected)==GU_DS_REUSED,"reentry refuses before another callback");
+  if(m->Reenter && !TestingReentry) {
+    TestingReentry=TRUE;
+    Check(GuDecodeSync(&m->Transaction,&m->Ops,&m->Expected)==GU_DS_REUSED,"reentry refuses before another callback");
+    GU_DS_TRANSACTION fresh={0};
+    Check(GuDecodeSync(&fresh,&m->Ops,&m->Expected)==GU_DS_REUSED && !fresh.Started,"fresh transaction cannot reuse active core workspace");
+    TestingReentry=FALSE;
+  }
 }
 static EFI_STATUS Read(VOID *context,GU_DS_SNAPSHOT *out) {
   MODEL *m=context;m->Reads++;Reenter(m);
@@ -84,6 +91,8 @@ static void Refuse(MODEL *m,unsigned writes) {
   unsigned before=m->Disables,reads=m->Reads,logs=m->Logs;
   Check(Run(m)==GU_DS_REUSED,"same transaction cannot retry");
   Check(m->Disables==before && m->Reads==reads && m->Logs==logs,"retry cannot call firmware or log");
+  MODEL next;Setup(&next,1,0);
+  Check(Run(&next)==GU_DS_FIXED,"every failed core session releases its image workspace guard");
 }
 int main(void) {
   MODEL m;

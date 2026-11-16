@@ -35,8 +35,9 @@ policy, not a measured hardware unlock state.
 
 Select the RTX 3090 (default), RTX 3090 Ti or RTX 3070 Ti with
 `-Card 3090|3090ti|3070ti` when building and running. Each binary requires its named
-GPU at PCI `0000:01:00.0`; this is a measurement target, not an EFI compatibility
-verdict. Result checking remains limited to the first and last output elements,
+GPU to be the only NVIDIA GPU, at PCI `0000:<bus>:00.0` on any bus; the location CUDA
+reports must match `nvidia-smi` in every trial. This is a measurement target, not an
+EFI compatibility verdict. Result checking remains limited to the first and last output elements,
 as in upstream.
 
 The setup script downloads CUDA 12.6 redistributables from NVIDIA's official server, verifies sizes/hashes and prepares them within the project. It does not change the driver, ComfyUI or system PATH. Downloads and disk space are required.
@@ -78,6 +79,15 @@ power limit and maximum SM/memory clocks. The runner checks these GPU settings
 after every trial. `comparison-complete.json` is written only after successful
 completion and binds the context and all three raw trial files by SHA256.
 These hashes detect accidental edits; they are not signed hardware evidence.
+
+The offline reader loads each required JSON file once, checks the context and
+trial SHA256 values against the completion record, and parses those same bytes.
+Edits after that snapshot cannot change the
+current comparison; a later invocation reads the files again and refuses an
+edit that no longer matches the completion record. Each file is limited to
+1 MiB. Symlinks/reparse points, nonregular files, duplicate JSON keys, malformed
+UTF-8, excessive nesting, and non-finite numbers are refused. The reader does
+not modify or reseal evidence. These checks do not authenticate its origin.
 
 Compare two completed runs from this updated runner, using Python 3.9+:
 

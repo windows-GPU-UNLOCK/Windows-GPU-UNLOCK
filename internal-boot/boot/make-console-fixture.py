@@ -12,6 +12,9 @@ from pathlib import Path
 
 source = Path(sys.argv[1])
 single = '--single-rtx' in sys.argv[2:]
+amd_retained = '--amd-retained-multi' in sys.argv[2:]
+if amd_retained and single:
+    raise ValueError('AMD-retained replay must keep its AMD console')
 aggregate = '--aggregate' in sys.argv[2:]
 if aggregate and not single:
     raise ValueError('--aggregate requires --single-rtx')
@@ -70,7 +73,7 @@ roles = {
     'Rtx': one(lambda b: f'gop framebuffer={rtx_fb}' in b),
     'Amd': 0 if single else one(lambda b: 'gop framebuffer=0x000000fce0000000' in b),
 }
-if single:
+if single or amd_retained:
     child_records = [e for e in edges if e[0] == roles['RtxPci'] and str(e[3]) == '09576e91-6d3f-11d2-8e39-00a0c969723b' and e[4] == 8 and e[2] != roles['Rtx']]
     # Only non-aggregate firmware without an EDID driver admits up to three
     # siblings. Preserve the legacy exact-two-child option when not disabled.
@@ -109,9 +112,17 @@ for role, protocol, controller in [
     roles[role] = records[0][1]
     block = blocks[next(h for h, i in indices.items() if i == roles[role])]
     if aggregate:
-        observed = re.findall(r'^driver image=0x([0-9a-f]+) binding=0x([0-9a-f]+)$', block, re.M)
+        # Keep legacy synthetic records, but validate every field the current
+        # diagnostic emits instead of silently accepting an arbitrary suffix.
+        driver_rows = [line for line in block.splitlines() if line.startswith('driver image=')]
+        observed = re.fullmatch(
+            r'driver image=0x([0-9a-f]+) binding=0x([0-9a-f]+)'
+            r'(?: version=0x([0-9a-f]+) stop-address=0x([0-9a-f]+))?',
+            driver_rows[0]) if len(driver_rows) == 1 else None
         binding = profile.binding_for(observed_bindings, original[roles[role]])
-        if len(observed) != 1 or tuple(int(value, 16) for value in observed[0]) != (binding['image'], binding['handle']):
+        if observed is None or tuple(int(value, 16) for value in observed.groups()[:2]) != (binding['image'], binding['handle']):
+            raise ValueError('Aggregate graph and binding image records disagree')
+        if observed[3] is not None and (int(observed[3], 16), int(observed[4], 16)) != (binding['version'], binding['stop']):
             raise ValueError('Aggregate graph and binding image records disagree')
     roles[role.removesuffix('Agent') + 'Image'] = indices[hex(int(re.search(r'driver image=(0x[0-9a-f]+)', block)[1], 16))]
 console = re.search(r'console out=(0x[0-9a-f]+) error=(0x[0-9a-f]+) input=(0x[0-9a-f]+)', text)
@@ -120,7 +131,7 @@ for role, value in zip(['Console', 'Error', 'Input'], console.groups()):
 lines = [f'/* Local diagnostic sha256 {hashlib.sha256(raw).hexdigest()} */', f'#define FX_HANDLES {len(blocks)}',
          f'#define FX_NO_EDID_DRIVER {1 if no_edid_driver else 0}',
          f'#define FX_EXTRA_DISPLAY_CHILD {1 if roles.get("EdidChild") else 0}']
-if single:
+if single or amd_retained:
     if any(record[1]!=roles['NvAgent'] or record[5]!=1 for record in child_records):
         raise ValueError('Additional display child has an unreviewed NVIDIA owner/count')
     if no_edid_driver and any(EDID_DISCOVERED not in parsed[int(handle,16)]['protocols']
@@ -183,7 +194,28 @@ if aggregate:
         parent,device,base,size,code_type=(int(value,16) for value in image_rows[0])
         if (base,size,code_type)!=(binding['base'],binding['size'],binding['code-type']):
             raise ValueError('Aggregate image and binding metadata disagree')
-        image_nodes=re.findall(r'^image-file-path-node raw=([0-9a-f]+)$',image_block['raw'],re.M)
+        image_lines = image_block['raw'].splitlines()
+        image_nodes = []
+        consumed_markers = 0
+        for line_index, line in enumerate(image_lines):
+            marker = re.fullmatch(r'image-file-path-node raw=([0-9a-f]+)', line)
+            if marker:
+                image_nodes = [marker[1]]
+                consumed_markers = 1
+                for follow in image_lines[line_index + 1:]:
+                    # Path() prefixes only the first node. Existing synthetic
+                    # captures prefix every node. Preserve the terminator and
+                    # compare the complete contiguous path in either format.
+                    tail = re.fullmatch(r'(image-file-)?path-node raw=([0-9a-f]+)', follow)
+                    if not tail:
+                        break
+                    image_nodes.append(tail[2])
+                    consumed_markers += int(tail[1] is not None)
+                break
+        else:
+            raise ValueError('Aggregate driver image has no file path record')
+        if consumed_markers != sum(line.startswith('image-file-path-node') for line in image_lines):
+            raise ValueError('Aggregate driver image has ambiguous file path records')
         if image_nodes!=[node.hex() for node in binding['nodes']]:
             raise ValueError('Aggregate image file paths disagree')
         if device and hex(device) not in indices:
@@ -216,7 +248,7 @@ if aggregate:
     lines.append('static const UINT32 FixtureCold[9]={'+','.join(f'0x{cold[offset]:x}U' for offset in profile.COLD)+'};')
     lines.append('static const UINT32 FixtureColdOffsets[9]={'+','.join(f'0x{offset:x}U' for offset in profile.COLD)+'};')
 child_paths=[]
-for child in ([record[2] for record in child_records] if single else []):
+for child in ([record[2] for record in child_records] if single or amd_retained else []):
     child_key=next(h for h,index in indices.items() if index==child)
     child_block = blocks[child_key]
     if profile.GOP in parsed[int(child_key,16)]['protocols'] or profile.TEXT_OUT in parsed[int(child_key,16)]['protocols']:
@@ -229,13 +261,30 @@ for child in ([record[2] for record in child_records] if single else []):
     if child_path==primary_path or child_path in child_paths:
         raise ValueError('Additional display children require unique paths')
     child_paths.append(child_path)
-if single:
+if single or amd_retained:
     lines.append('#define FX_EXTRA_CHILD_PATHS {'+(','.join('{'+','.join(str(byte) for byte in path)+'}' for path in child_paths) or '{0}')+'}')
+if amd_retained:
+    amd_key=next(h for h,index in indices.items() if index==roles['Amd'])
+    amd_path=profile.path_of(blocks[amd_key])
+    if amd_path is None or len(amd_path)!=36:
+        raise ValueError('AMD replay requires its complete display path')
+    lines.append('#define FX_AMD_DISPLAY_PATH_BYTES '+','.join(str(byte) for byte in amd_path))
 if child_paths:
     lines.append('#define FX_EDID_CHILD_PATH_BYTES ' + ','.join(str(byte) for byte in child_paths[0]))
 for role, value in roles.items():
     lines.append(f'#define FX_{role} ((EFI_HANDLE){value})')
 lines.append('static const EDGE FixtureEdges[]={')
+if aggregate:
+    # Host replay scenarios damage Live.Edges[0] expecting the reviewed target
+    # controller's BY_DRIVER PciIo ownership record (the synthetic graph's first
+    # edge). Put the captured equivalent at index 0 so the faults remain visible.
+    PCI_IO = '4cf5b200-68b8-4ca5-9eec-b23e3f50029a'
+    target_edges = [e for e in edges if e[0] == roles['RtxPci'] and e[2] == roles['RtxPci']
+                    and str(e[3]) == PCI_IO and e[4] == 16]
+    if len(target_edges) != 1:
+        raise ValueError('Aggregate fixture requires one target PciIo BY_DRIVER edge')
+    edges.remove(target_edges[0])
+    edges.insert(0, target_edges[0])
 for h, a, c, g, attrs, count in edges:
     data = g.bytes
     guid = f'{{0x{g.time_low:x},0x{g.time_mid:x},0x{g.time_hi_version:x},{{' + ','.join(f'0x{x:x}' for x in data[8:]) + '}}'

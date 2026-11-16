@@ -4,8 +4,10 @@ import argparse
 import hashlib
 import json
 import math
+import os
 from pathlib import Path, PurePosixPath
 import re
+import stat
 import statistics
 import sys
 
@@ -18,6 +20,7 @@ IDENTITY = ('gpu', 'pci', 'compute_capability', 'cuda_runtime',
 CARDS = {'NVIDIA GeForce RTX 3090': '3090',
          'NVIDIA GeForce RTX 3090 Ti': '3090ti',
          'NVIDIA GeForce RTX 3070 Ti': '3070ti'}
+MAX_RESULT_BYTES = 1024 * 1024
 
 
 def require(condition, message):
@@ -25,16 +28,51 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def read_json(path):
+def read_result(path):
+    """Read one bounded regular-file snapshot without exposing private paths."""
+    try:
+        info = path.lstat()
+        require(stat.S_ISREG(info.st_mode)
+                and not getattr(info, 'st_file_attributes', 0) & 0x400,
+                f'{path.name}: expected a regular result file')
+        require(info.st_size <= MAX_RESULT_BYTES,
+                f'{path.name}: result exceeds the 1 MiB limit')
+        flags = os.O_RDONLY | getattr(os, 'O_BINARY', 0)
+        flags |= getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
+        with os.fdopen(os.open(path, flags), 'rb') as stream:
+            opened = os.fstat(stream.fileno())
+            require(stat.S_ISREG(opened.st_mode)
+                    and (info.st_dev, info.st_ino) == (opened.st_dev, opened.st_ino),
+                    f'{path.name}: result file changed while opening')
+            raw = stream.read(MAX_RESULT_BYTES + 1)
+        require(len(raw) <= MAX_RESULT_BYTES,
+                f'{path.name}: result exceeds the 1 MiB limit')
+        return raw
+    except OSError:
+        raise OSError(f'{path.name}: result file is unavailable') from None
+
+
+def read_json(path, raw=None):
     def unique_pairs(pairs):
         result = {}
         for key, value in pairs:
-            require(key not in result, f'{path.name}: duplicate key {key}')
+            require(key not in result, f'{path.name}: duplicate JSON key')
             result[key] = value
         return result
 
-    return json.loads(path.read_text(encoding='utf-8-sig'),
-                      object_pairs_hook=unique_pairs)
+    def finite_float(text):
+        value = float(text)
+        require(math.isfinite(value), 'Non-finite JSON number')
+        return value
+
+    if raw is None:
+        raw = read_result(path)
+    try:
+        return json.loads(raw.decode('utf-8-sig'), object_pairs_hook=unique_pairs,
+                          parse_float=finite_float,
+                          parse_constant=lambda _: require(False, 'Non-finite JSON number'))
+    except (UnicodeError, RecursionError):
+        raise ValueError(f'{path.name}: invalid or excessively nested JSON') from None
 
 
 def positive(value):
@@ -111,6 +149,7 @@ def load_run(directory):
     require(isinstance(files, list) and len(files) == 4, 'Incomplete result hash list')
     expected = {'comparison-context.json', 'trial-1.json', 'trial-2.json', 'trial-3.json'}
     seen_files = set()
+    snapshots = {}
     for record in files:
         require(isinstance(record, dict), 'Invalid completion hash record')
         name = record.get('Path')
@@ -120,9 +159,13 @@ def load_run(directory):
         digest = record.get('SHA256')
         require(isinstance(digest, str) and re.fullmatch('[0-9a-fA-F]{64}', digest),
                 'Invalid result SHA256')
-        require(hashlib.sha256((directory / name).read_bytes()).hexdigest() == digest.lower(),
+        raw = read_result(directory / name)
+        require(hashlib.sha256(raw).hexdigest() == digest.lower(),
                 f'{name}: changed after run completion')
-    context = context_key(read_json(directory / 'comparison-context.json'))
+        snapshots[name] = raw
+    # Parse exactly the bytes whose digest was checked. Reopening a result here
+    # could admit a later edit under the earlier completion hash.
+    context = context_key(read_json(directory / 'comparison-context.json', snapshots['comparison-context.json']))
     paths = sorted(directory.glob('trial-*.json'))
     require({p.name for p in paths} == {'trial-1.json', 'trial-2.json', 'trial-3.json'},
             'Expected exactly trial-1.json, trial-2.json and trial-3.json')
@@ -130,7 +173,7 @@ def load_run(directory):
     names = context['benchmark_names']
     values = {name: [] for name in names}
     for path in paths:
-        trial = read_json(path)
+        trial = read_json(path, snapshots[path.name])
         require(isinstance(trial, dict), f'{path.name}: invalid trial')
         require(all(key in trial for key in IDENTITY), 'Incomplete trial metadata')
         current = {key: trial[key] for key in IDENTITY}

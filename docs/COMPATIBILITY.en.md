@@ -61,8 +61,12 @@ the user's own Windows/dedicated ESP GUID configuration.
 
 The headless test had all monitors on RTX and no active AMD GOP. The 7800X3D
 still contains an iGPU; BIOS disablement is not established by a missing GOP.
-The B650M profile was not re-verified after the profile split; its code path
-is preserved behind the same build-time checks.
+On 2026-11-09 the maintainer confirmed one successful manual unlock and Windows
+return with one motherboard display and two RTX displays, using the opt-in
+[AMD-retained build](../research/amd-retained/README.md). That private build was
+based on `43f6ac276e671458c95ec3d819af3568fe76d46a` plus the child output-path fix.
+This does not physically qualify every B650M route or the integrated revision;
+automatic boot has not yet been physically verified.
 
 ## Profile 2: ASUS TUF B660M-E D4 / RTX 3070 Ti (aggregate console)
 

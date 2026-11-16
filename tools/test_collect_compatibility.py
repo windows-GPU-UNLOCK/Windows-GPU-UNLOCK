@@ -3,6 +3,7 @@
 import copy
 import json
 import subprocess
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -102,21 +103,24 @@ class CollectionTests(unittest.TestCase):
     @patch('collect_compatibility.sys.platform', 'win32')
     @patch('collect_compatibility.subprocess.run')
     def test_collection_uses_fixed_command_and_timeout(self, run):
-        run.return_value = subprocess.CompletedProcess([], 0, json.dumps(inventory()), '')
+        run.return_value = subprocess.CompletedProcess([], 0, json.dumps(inventory()).encode(), b'')
         self.assertTrue(collect_inventory()['collection_complete'])
         args, kwargs = run.call_args
         self.assertIn('-NonInteractive', args[0])
         self.assertIn('-EncodedCommand', args[0])
         self.assertNotIn('shell', kwargs)
         self.assertEqual(kwargs['timeout'], 45)
+        self.assertNotIn('encoding', kwargs)
+        self.assertNotIn('text', kwargs)
 
     @patch('collect_compatibility.sys.platform', 'win32')
     @patch('collect_compatibility.subprocess.run')
     def test_failure_and_raw_stderr_do_not_escape(self, run):
         for response in (
-            subprocess.CompletedProcess([], 1, '', 'PRIVATE-ERROR'),
-            subprocess.CompletedProcess([], 0, 'PRIVATE-INVALID-JSON', ''),
-            subprocess.CompletedProcess([], 0, '[]', ''),
+            subprocess.CompletedProcess([], 1, b'', b'\x8fPRIVATE-ERROR'),
+            subprocess.CompletedProcess([], 0, b'PRIVATE-INVALID-JSON', b''),
+            subprocess.CompletedProcess([], 0, b'[]', b''),
+            subprocess.CompletedProcess([], 0, b'\x8fPRIVATE-INVALID-UTF8', b''),
         ):
             run.return_value = response
             with self.assertRaises(RuntimeError) as error:
@@ -128,6 +132,55 @@ class CollectionTests(unittest.TestCase):
             with self.assertRaises(RuntimeError) as caught:
                 collect_inventory()
             self.assertNotIn('PRIVATE-', str(caught.exception))
+
+    @patch('collect_compatibility.sys.platform', 'win32')
+    def test_real_child_with_localized_stderr_and_utf8_inventory(self):
+        source = inventory()
+        source['os'][0]['Caption'] = 'Windows français / Русский / 한국어'
+        payload = ('\ufeff' + json.dumps(source, ensure_ascii=False)).encode('utf-8')
+        real_run = subprocess.run
+        def child(command, **kwargs):
+            # Exercise actual subprocess pipes, including Python's Windows
+            # reader threads, without PowerShell or any hardware query.
+            code = ('import sys; sys.stdout.buffer.write(' + repr(payload) + '); '
+                    "sys.stderr.buffer.write(b'\\x8fPRIVATE-LOCAL-PATH')")
+            return real_run([sys.executable, '-I', '-c', code], **kwargs)
+        with patch('collect_compatibility.subprocess.run', side_effect=child), \
+                patch('threading.excepthook') as thread_error:
+            report = collect_inventory()
+        thread_error.assert_not_called()
+        self.assertTrue(report['collection_complete'])
+        self.assertEqual(report['hardware']['os'][0]['Caption'], source['os'][0]['Caption'])
+        self.assertNotIn('PRIVATE-', json.dumps(report))
+
+    @patch('collect_compatibility.sys.platform', 'win32')
+    def test_japanese_cp932_stderr_does_not_break_complete_dell_inventory(self):
+        # Transcribed public identity plus synthetic localized text, not an
+        # owner capture. CP932 0x83 starts a multibyte character, not UTF-8.
+        source = inventory()
+        source['board'] = [{'Manufacturer': 'Dell Inc.', 'Product': '0R6PCT'}]
+        source['bios'][0]['SMBIOSBIOSVersion'] = '1.32.0'
+        source['os'][0]['Caption'] = 'Windows 11 日本語'
+        source['video'] = [{'Name': 'NVIDIA GeForce RTX 3060',
+                            'DriverVersion': '32.0.16.1060',
+                            'PNPDeviceID': r'PCI\VEN_10DE&DEV_2504&SUBSYS_C9741028\PRIVATE-INSTANCE'}]
+        payload = json.dumps(source, ensure_ascii=False).encode('utf-8')
+        warning = 'テスト PRIVATE-LOCAL-PATH'.encode('cp932')
+        self.assertEqual(warning[0], 0x83)
+        real_run = subprocess.run
+        def child(command, **kwargs):
+            code = ('import sys; sys.stdout.buffer.write(' + repr(payload) + '); '
+                    'sys.stderr.buffer.write(' + repr(warning) + ')')
+            return real_run([sys.executable, '-I', '-c', code], **kwargs)
+        with patch('collect_compatibility.subprocess.run', side_effect=child), \
+                patch('threading.excepthook') as thread_error:
+            report = collect_inventory()
+        thread_error.assert_not_called()
+        self.assertTrue(report['collection_complete'])
+        self.assertEqual(report['hardware']['os'][0]['Caption'], 'Windows 11 日本語')
+        self.assertEqual(report['hardware']['video'][0]['pci']['subsystem_device'], 'c974')
+        self.assertIs(report['assessment']['can_unlock'], False)
+        self.assertNotIn('PRIVATE-', json.dumps(report))
 
     @patch('collect_compatibility.sys.platform', 'linux')
     @patch('collect_compatibility.subprocess.run')

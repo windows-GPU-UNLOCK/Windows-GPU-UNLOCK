@@ -407,7 +407,11 @@ static void TestPaths(void) {
   for(unsigned i=0;i<sizeof(Amd);i++) {
     Check(!Path(Amd,i),"each truncated AMD GOP rejected");
     memcpy(P,Amd,sizeof(P));P[i]^=0x40;
+#if defined(GU_PROFILE_B650M_3090FE) && !defined(GU_HEADLESS_RESEARCH)
+    Check(Path(P,sizeof(P))==((i>=28 && i<32)?1:0),"only B650M AMD output ADR payload may vary");
+#else
     Check(!Path(P,sizeof(P)),"each changed AMD GOP byte rejected");
+#endif
   }
   memcpy(P,Amd,sizeof(P));P[16]=0;Check(!Path(P,sizeof(P)),"wrong bridge function rejected");
   memcpy(P,Amd,sizeof(P));P[6]=8;Check(!Path(P,sizeof(P)),"uncaptured ACPI root rejected");

@@ -1,5 +1,6 @@
 """Compare two reviewed format-2 compatibility reports; never assess unlock safety."""
 import argparse
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -8,12 +9,16 @@ import stat
 import sys
 
 sys.dont_write_bytecode = True
+spec = importlib.util.spec_from_file_location('comparison_parent', Path(__file__).resolve().parent / 'parent_baseline.py')
+parent = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(parent)
 LIMIT = 1024 * 1024
 COUNTS = ('display_controller_count', 'nvidia_display_count', 'other_display_count',
           'gop_handle_count', 'edid_by_driver_open_count', 'edid_active_open_count')
-FIELDS = COUNTS + ('display_controllers', 'display_controllers_truncated', 'chip_id',
+BASE_FIELDS = COUNTS + ('display_controllers', 'display_controllers_truncated', 'chip_id',
                    'device_memory_size_mib', 'register_snapshot', 'firmware_bindings',
                    'firmware_bindings_truncated')
+FIELDS = BASE_FIELDS + ('parent_baseline',)
 STATES = {'candidate', 'needs_data', 'outside_scope', 'invalid_data', 'error'}
 
 
@@ -59,7 +64,10 @@ def validate(report):
         if not observation['available']:
             require(set(observation) == {'capture', 'available'})
             continue
-        require(set(observation) == {'capture', 'available'} | set(FIELDS))
+        require(set(observation) == {'capture', 'available'} | set(BASE_FIELDS) |
+                ({'parent_baseline'} if 'parent_baseline' in observation else set()))
+        if 'parent_baseline' in observation:
+            parent.validate(observation['parent_baseline'])
         for field in COUNTS:
             require(integer(observation[field], 2097152 if field.startswith('edid_') else 4096))
         require(observation['display_controller_count'] == observation['nvidia_display_count'] + observation['other_display_count'])
@@ -138,11 +146,14 @@ def compare(left, right):
         for report in (left, right):
             records = report['observations']
             values = [record.get(field) if record['available'] else None for record in records]
-            unavailable |= (not values or len(records) != report['capture_count'] or any(unknown(v) for v in values))
+            unavailable |= (not values or len(records) != report['capture_count'] or
+                            (field != 'parent_baseline' and any(unknown(v) for v in values)))
             if field == 'display_controllers':
                 unavailable |= any(record.get('display_controllers_truncated', False) for record in records)
             if field == 'firmware_bindings':
                 unavailable |= any(record.get('firmware_bindings_truncated', False) for record in records)
+            if field == 'parent_baseline':
+                unavailable |= any(not isinstance(value, dict) or value.get('state') != 'recorded' for value in values)
             # Distinct observations per side: capture numbers/boot counts are not machine identity.
             sides.append([json.loads(value) for value in sorted({json.dumps(v, sort_keys=True) for v in values})])
         state = 'unavailable' if unavailable else 'same' if sides[0] == sides[1] else 'different'

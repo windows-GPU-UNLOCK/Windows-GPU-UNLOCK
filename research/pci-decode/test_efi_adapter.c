@@ -4,6 +4,10 @@
 #include <string.h>
 #undef NULL
 #include "efi-adapter.h"
+#ifdef GU_DS_HOST_WORKSPACE_TEST
+const VOID *GuDsTestAdapterWorkspace(UINTN);
+const VOID *GuDsTestCoreWorkspace(UINTN);
+#endif
 
 static unsigned Checks;
 static void Check(int ok,const char *s) {Checks++;if(!ok){fprintf(stderr,"FAIL %s\n",s);exit(1);}}
@@ -31,11 +35,23 @@ static DEVICE *Device(EFI_PCI_IO_PROTOCOL *io) {
 }
 static EFI_STATUS Tick(void) {
   M->Calls++;
+#ifdef GU_DS_OWNED_TEST
+  OwnedTick();
+#endif
+#ifdef GU_DS_RESTORE_TEST
+  RestoreTick();
+#endif
   if(M->Reenter) {
     GU_DS_TRANSACTION fresh={0};
     Check(GuDsEfiRun(&M->Adapter,&fresh)==GU_DS_REUSED,"same adapter refuses reentry through a fresh transaction");
     Check(GuDsEfiInitialize(&M->Adapter,&M->Boot,(EFI_HANDLE)&M->OwnerTag,M->Bindings,M->Count,&M->Expected,NULL,NULL)==EFI_ALREADY_STARTED,
       "Init cannot reset a running adapter");
+    GU_DS_EFI_CONTEXT other={0};GU_DS_TRANSACTION otherTransaction={0};unsigned calls=M->Calls;
+    Check(GuDsEfiInitialize(&other,&M->Boot,(EFI_HANDLE)&M->OwnerTag,M->Bindings,M->Count,&M->Expected,NULL,NULL)==EFI_ALREADY_STARTED && !other.InitUsed,
+      "fresh initializer cannot enter shared adapter workspace");
+    other=M->Adapter;other.RunUsed=FALSE;other.Busy=FALSE;other.ActiveOutput=NULL;
+    Check(GuDsEfiRun(&other,&otherTransaction)==GU_DS_REUSED && !other.RunUsed && !otherTransaction.Started && M->Calls==calls,
+      "fresh context and transaction cannot reenter active adapter");
   }
   if(M->MutateAt==M->Calls) {
     DEVICE *d=&M->Devices[M->MutationDevice?M->MutationDevice:M->Count-1];
@@ -60,6 +76,13 @@ static EFI_STATUS EFIAPI Owners(EFI_HANDLE handle,EFI_GUID *guid,EFI_OPEN_PROTOC
   M->OwnerQueries++;M->LastOwnerQuery=M->Calls+1;
   EFI_STATUS s=Tick();if(M->DropAt==M->Calls)return s;
   unsigned mode=M->OwnerMode;
+#ifdef GU_DS_HOST_WORKSPACE_TEST
+  if(mode>=35 && mode<=55) {
+    UINTN index=(mode-35)%7;
+    const UINT8 *p=index<5?GuDsTestAdapterWorkspace(index):GuDsTestCoreWorkspace(index-5);
+    *out=(VOID *)(mode>=49?(UINTN)p-sizeof(UINTN):(UINTN)p+(mode>=42?sizeof(UINTN):0));*count=1;return s;
+  }
+#endif
   if(mode==1){*out=NULL;*count=0;return s;}
   if(mode==13){*out=NULL;*count=1;return s;}
   if(mode==33 || mode==34) {
@@ -213,9 +236,18 @@ static void Refuse(MODEL *m) {
   unsigned n=m->Calls,w=m->Writes,l=m->Logs;GU_DS_TRANSACTION fresh={0};
   Check(GuDsEfiRun(&m->Adapter,&fresh)==GU_DS_REUSED,"new transaction cannot reuse adapter");
   Check(m->Calls==n && m->Writes==w && m->Logs==l,"reused adapter cannot call firmware");
+  Check(Init(m)==EFI_ALREADY_STARTED && m->Calls==n,"spent adapter cannot be initialized outside callbacks");
+  MODEL next;MODEL *original=M;Setup(&next,1,0);
+  Check(Init(&next)==EFI_SUCCESS && Run(&next)==GU_DS_FIXED,"every failed adapter session releases its image workspace guard");M=original;
 }
 int main(void) {
   MODEL m;
+#ifdef GU_DS_HOST_WORKSPACE_TEST
+  for(unsigned mode=35;mode<=55;mode++) {
+    Setup(&m,1,0);m.OwnerMode=mode;Check(Init(&m)==EFI_SUCCESS,"private workspace alias setup");
+    Refuse(&m);Check(!m.Writes && !m.Frees && m.Adapter.OwnershipFault,"private active/read/disable/core/output buffers cannot be freed as pool allocations");
+  }
+#endif
   for(unsigned parents=1;parents<=GU_DS_EFI_MAX_PARENTS;parents++)for(unsigned seg=0;seg<3;seg++) {
     Setup(&m,parents,seg==2?0xffff:seg);m.Reenter=1;
     if(seg==2)for(unsigned i=0;i<m.Count;i++) {

@@ -17,19 +17,30 @@ def main():
     parser.add_argument('--lld-link',default='lld-link')
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--stack-mutation',action='store_true')
+    parser.add_argument('--post-stop',action='store_true',help='Opt in to the research post-Stop collector; never execute')
     args=parser.parse_args();out=args.output.resolve()
     if out.exists():parser.error('Output must be a new directory')
     out.mkdir(parents=True)
     entry=out/'entry.c'
+    extra=('static GU_DS_SNAPSHOT Before;\n'
+        'static EFI_STATUS (*volatile After)(GU_DS_CAPTURE *,EFI_BOOT_SERVICES *,const GU_DS_CAPTURE_TARGET *,const GU_DS_SNAPSHOT *)=GuDsEfiCaptureAfterStop;\n'
+        'static EFI_STATUS (*volatile Released)(GU_DS_CAPTURE *,EFI_BOOT_SERVICES *,const GU_DS_CAPTURE_TARGET *,const GU_DS_SNAPSHOT *)=GuDsEfiCaptureReleasedMismatch;\n') if args.post_stop else ''
+    dispatch=(' if(((UINTN)image)&1)return After(&Capture,table->BootServices,&Target,&Before);\n'
+        ' if(((UINTN)image)&2)return Released(&Capture,table->BootServices,&Target,&Before);\n') if args.post_stop else ''
     entry.write_text('/* Link test only. No valid target or boot configuration. Never execute. */\n'
         '#include "efi-capture.h"\nstatic GU_DS_CAPTURE Capture;\nstatic GU_DS_CAPTURE_TARGET Target;\n'
         'static EFI_STATUS (*volatile Collect)(GU_DS_CAPTURE *,EFI_BOOT_SERVICES *,const GU_DS_CAPTURE_TARGET *)=GuDsEfiCapture;\n'
+        +extra+
         'EFI_STATUS EFIAPI efi_main(EFI_HANDLE image,EFI_SYSTEM_TABLE *table) {\n'
+        +dispatch+
         ' Target.Handle=image;return Collect(&Capture,table->BootServices,&Target);\n}\n')
     flags=[args.clang,'-target','x86_64-pc-windows-msvc','-std=c11','-ffreestanding','-fno-builtin',
            '-fno-stack-protector','-mno-red-zone','-fshort-wchar','-Os','-Wall','-Wextra','-Werror','-fstack-usage',
            '-I',str(HERE),'-I',str(ROOT/'deps/edk2/MdePkg/Include'),'-I',str(ROOT/'deps/edk2/MdePkg/Include/X64')]
     sources=[HERE/'efi-capture.c',HERE/'snapshot.c',ROOT/'internal-boot/efi_runtime.c',entry]
+    if args.post_stop:
+        flags.append('-DGU_DS_POST_STOP_CAPTURE=1')
+        sources.append(HERE/'stop-transition.c')
     def run(log,command):
         result=subprocess.run([str(v) for v in command],capture_output=True,text=True,cwd=ROOT,timeout=30)
         log.write_text(result.stdout+result.stderr)
@@ -41,6 +52,9 @@ def main():
             r=run(folder/(obj.stem+'.log'),[*flags,'-c',source,'-o',obj])
             if r.returncode:raise RuntimeError('Readonly object compile failed: '+str(source))
             if obj.read_bytes()[:2]!=b'\x64\x86':raise RuntimeError('Unexpected COFF machine')
+            if not args.post_stop and source.name=='efi-capture.c':
+                for symbol in (b'GuDsEfiCaptureAfterStop',b'GuDsEfiCaptureReleasedMismatch',b'GuDsStopTransition',b'GuDsPlanReleasedMismatch'):
+                    if symbol in obj.read_bytes():raise RuntimeError('Post-Stop symbol in ordinary collector object')
         binary=folder/'SYNTHETIC-READONLY-NOT-FOR-EXECUTION.efi';symbols=folder/'symbols.map'
         linked=run(folder/'link.log',[args.lld_link,'/nologo','/nodefaultlib','/subsystem:efi_application',
             '/entry:efi_main','/machine:x64','/base:0','/dynamicbase','/nxcompat','/timestamp:0',
@@ -59,6 +73,9 @@ def main():
     if max(row['bytes'] for row in frames)>2048:raise RuntimeError('Readonly frame exceeds 2 KiB limit')
     forbidden=r'\b(?:GuDecodeSync|GuDsEfiRun|GuDsEfiInitialize|gpu_unlock_[A-Za-z_0-9]+)\b'
     if re.search(forbidden,symbols.read_text()):raise RuntimeError('Actuator symbol reached readonly image')
+    if args.post_stop:
+        for symbol in ('GuDsEfiCaptureAfterStop','GuDsEfiCaptureReleasedMismatch','GuDsStopTransition','GuDsPlanReleasedMismatch'):
+            if not re.search(r'\b'+symbol+r'\b',symbols.read_text()):raise RuntimeError('Missing post-Stop symbol '+symbol)
     spec=importlib.util.spec_from_file_location('readonly_verify_pe',ROOT/'internal-boot/unlock/verify_pe.py')
     verifier=importlib.util.module_from_spec(spec);spec.loader.exec_module(verifier)
     pe=verifier.inspect(binary,symbols)
@@ -80,8 +97,9 @@ def main():
         mutant={'compiled':True,'link_rejected':True,'max_frame_bytes':max(row['bytes'] for row in bad_frames)}
     inputs=[*sources,HERE/'snapshot.h',HERE/'efi-capture.h',HERE/'efi-binding.h',HERE/'efi-path.h',
             ROOT/'internal-boot/unlock/gpu-path.h']
+    if args.post_stop:inputs.append(HERE/'stop-transition.h')
     result={'synthetic_entry_only':True,'hardware_access':False,'efi_executed':False,'package_authorized':False,
-            'actuator_sources_linked':False,'efi_sha256':hashlib.sha256(binary.read_bytes()).hexdigest(),
+            'actuator_sources_linked':False,'post_stop_opt_in':args.post_stop,'efi_sha256':hashlib.sha256(binary.read_bytes()).hexdigest(),
             'frames':frames,'max_frame_bytes':max(row['bytes'] for row in frames),'stack_mutation':mutant,
             'source_sha256':{str(p.relative_to(ROOT) if p.is_relative_to(ROOT) else p):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}}
     (out/'summary.json').write_text(json.dumps(result,indent=2))

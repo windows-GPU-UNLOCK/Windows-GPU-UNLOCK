@@ -19,6 +19,10 @@ static EFI_STATUS EFIAPI ParentLogWrite(EFI_FILE_PROTOCOL *file,UINTN *n,VOID *d
   return LogWrite(file,n,data);
 }
 static EFI_STATUS EFIAPI ParentRead(EFI_PCI_IO_PROTOCOL *io,EFI_PCI_IO_PROTOCOL_WIDTH w,UINT32 at,UINTN n,VOID *data) {
+  if(w==EfiPciIoWidthUint32 && !at && n==16) {
+    UINT32 full[64];EFI_STATUS s=ParentRead(io,w,at,64,full);
+    if(s==EFI_SUCCESS)memcpy(data,full,16*sizeof(*full));return s;
+  }
   if(io==&Pci || io==&ChangedPci) {
     if((ParentFault==17 || ParentFault==18) && S.PromAllocs && w==EfiPciIoWidthUint32 && !at && n==64) {
       UINT32 complete[64];EFI_STATUS s=GenericRead(io,w,at,n,complete);complete[1]=Command;
@@ -73,15 +77,42 @@ static EFI_STATUS EFIAPI ParentLocate(EFI_GUID *g,EFI_DEVICE_PATH_PROTOCOL **pat
   if(!memcmp(*path,BridgePath,sizeof(BridgePath))){*h=(VOID *)60;*path=(VOID *)((UINT8 *)*path+sizeof(BridgePath)-4);return EFI_SUCCESS;}
   return EFI_NOT_FOUND;
 }
+static EFI_STATUS EFIAPI ParentEnumerate(EFI_LOCATE_SEARCH_TYPE search,EFI_GUID *g,VOID *key,UINTN *n,EFI_HANDLE **out) {
+  if(search==AllHandles) {
+    *n=3;*out=malloc(*n*sizeof(**out));Check(*out!=NULL,"host graph allocation");
+    (*out)[0]=GraphHandle;(*out)[1]=PciHandle;(*out)[2]=(VOID *)60;return EFI_SUCCESS;
+  }
+  return GenericLocate(search,g,key,n,out);
+}
+static EFI_STATUS EFIAPI ParentProtocols(EFI_HANDLE h,EFI_GUID ***out,UINTN *n) {
+  if(h==PciHandle || h==(VOID *)60) {
+    *n=2;*out=malloc(*n*sizeof(**out));Check(*out!=NULL,"host protocol allocation");
+    (*out)[0]=&WantPci;(*out)[1]=&ParentPathGuid;return EFI_SUCCESS;
+  }
+  return Protocols(h,out,n);
+}
+static void Export(const char *prefix,const char *suffix) {
+  if(!prefix)return;
+  char path[1024];int n=snprintf(path,sizeof(path),"%s.%s.TXT",prefix,suffix);
+  Check(n>0 && (UINTN)n<sizeof(path),"bounded host-only capture export path");
+  FILE *old=fopen(path,"rb");if(old)fclose(old);Check(!old,"never replace existing capture export");
+  FILE *file=fopen(path,"wb");Check(file!=NULL,"host-only capture export opens");
+  Check(fwrite(S.Output,1,S.OutputBytes,file)==S.OutputBytes,"export exact producer bytes");
+  /* GuCaptureGraphOnVolume does not emit its caller's final result trailer.
+   * Add the same success trailer as the diagnostic entry point, in host RAM. */
+  Check(fputs("diagnostic-result status=0x0000000000000000\r\n",file)>=0 && !fclose(file),"export caller result trailer");
+}
 static void ParentSetup(unsigned fault) {
   GenericSetup(G_OK);ParentFault=fault;ParentHits=0;Command=2;Replaced=FALSE;
   TestSegment=GU_PARENT_TEST_SEGMENT;
   Bs.HandleProtocol=ParentHandle;Bs.LocateDevicePath=ParentLocate;
+  Bs.LocateHandleBuffer=ParentEnumerate;Bs.ProtocolsPerHandle=ParentProtocols;
   Pci.Pci.Read=ParentRead;Pci.GetLocation=ParentLocation;Pci.Attributes=ParentAttrs;
   ParentIo=(EFI_PCI_IO_PROTOCOL){0};ParentIo.Pci.Read=ParentRead;ParentIo.GetLocation=ParentLocation;ParentIo.Attributes=ParentAttrs;
   ChangedPci=Pci;
 }
-int main(void) {
+int main(int argc,char **argv) {
+  Check(argc==1 || argc==2,"optional host export prefix only");const char *prefix=argc==2?argv[1]:NULL;
   ParentSetup(0);
   Check(!Pci.Pci.Write && !Pci.Mem.Write && !Pci.Io.Write && !Bs.OpenProtocol && !Bs.DisconnectController && !Rt.SetVariable,
     "the host producer has no device mutation, acquisition, release or NVRAM service");
@@ -92,6 +123,7 @@ int main(void) {
   while((cursor=strstr(cursor,"cfg dwords="))!=NULL){configs++;cursor++;}
   Check(configs==1,"parent records cannot masquerade as another target config snapshot");
   Check(S.RegReads==16 && S.PromReads==PROM_DWORDS && ParentHits==2,"new reads do not increase the bounded GPU MMIO batch");
+  Export(prefix,"normal");
   for(unsigned fault=1;fault<=8;fault++) {
     ParentSetup(fault);
     Check(GuCaptureGraphOnVolume(&Table,&LogFile,&RootFile)==EFI_NOT_READY,"parent callback drift fails the actual capture");
@@ -99,6 +131,7 @@ int main(void) {
   }
   ParentSetup(9);
   Check(GuCaptureGraphOnVolume(&Table,&LogFile,&RootFile)==EFI_SUCCESS && Logged("available=0 parents=0x00"),"unsupported parent chain is optional, not a profile grant");
+  Export(prefix,"unsupported");
   for(unsigned fault=13;fault<=18;fault++) {
     ParentSetup(fault);
     Check(GuCaptureGraphOnVolume(&Table,&LogFile,&RootFile)==EFI_NOT_READY,"missing final BDF/config output cannot become a complete capture");
@@ -106,8 +139,10 @@ int main(void) {
   }
   ParentSetup(0);Command=3;
   Check(GuCaptureGraphOnVolume(&Table,&LogFile,&RootFile)==EFI_SUCCESS && Logged("available=0 parents=0x00"),"legacy command3 capture remains usable without this research subset");
+  Export(prefix,"command3");
   ParentSetup(0);TestId=0x24c910de;
   Check(GuCaptureGraphOnVolume(&Table,&LogFile,&RootFile)==EFI_SUCCESS && Logged("available=0 parents=0x00"),"production24c9 admission does not widen the research collector");
+  Export(prefix,"24c9");
   for(unsigned fault=10;fault<=12;fault++) {
     ParentSetup(fault);LogFile.Write=ParentLogWrite;
     static CAPTURE direct;static GU_DS_CAPTURE observation;

@@ -78,6 +78,9 @@ typedef struct {
 #endif
 } PLAN;
 static PLAN PreparedPlan;
+#ifdef GU_RELEASE_PARENT_AUDIT
+#include "release-parent-audit.h"
+#endif
 static const GRAPH *PreparedGraph;
 static BOOLEAN PreparedReady;
 static EFI_GUID PciGuid=EFI_PCI_IO_PROTOCOL_GUID,PathGuid=EFI_DEVICE_PATH_PROTOCOL_GUID;
@@ -467,7 +470,11 @@ static EFI_STATUS Alive(EFI_SYSTEM_TABLE *t,PLAN *p) {
   if(s!=EFI_SUCCESS || out!=p->ConsoleText || err!=p->ErrorText || in!=p->Keys)return EFI_NOT_READY;
   return Displays(t,p,FALSE);
 }
+#ifdef GU_RELEASE_PARENT_AUDIT
+static EFI_STATUS PrepareConsoleAudited(EFI_SYSTEM_TABLE *t,GU_PREPARE_LOG log,VOID *context) {
+#else
 EFI_STATUS GuPrepareConsole(EFI_SYSTEM_TABLE *t,GU_PREPARE_LOG log,VOID *context) {
+#endif
   PreparedReady=FALSE;
   if(!t || !t->BootServices || !log || !t->ConOut || !t->StdErr || !t->ConIn || !t->ConsoleOutHandle || !t->ConsoleInHandle || !t->StandardErrorHandle)return EFI_INVALID_PARAMETER;
   EFI_BOOT_SERVICES *bs=t->BootServices;
@@ -491,22 +498,41 @@ EFI_STATUS GuPrepareConsole(EFI_SYSTEM_TABLE *t,GU_PREPARE_LOG log,VOID *context
   if(s==EFI_SUCCESS)s=Alive(t,&p);
   EFI_STATUS recorded=log(context,"console-prepare-preflight",s);
   if(s!=EFI_SUCCESS || recorded!=EFI_SUCCESS)return s==EFI_SUCCESS?recorded:s;
+#ifdef GU_RELEASE_PARENT_AUDIT
+  s=ReleaseAuditBeforeConsole(t,&p);if(s!=EFI_SUCCESS)return s;
+#endif
 #if !GU_CONSOLE_AGGREGATE
   for(UINTN stage=1;stage<=2;stage++) {
     /* Flush intent before the final live recheck so filesystem notifications
      * cannot make the graph snapshot older than our log operation. */
     s=log(context,stage==1?"detach-rtx-textout-intent":"detach-rtx-graphics-console-intent",EFI_SUCCESS);
     if(s!=EFI_SUCCESS)return s;
+#ifdef GU_RELEASE_PARENT_AUDIT
+    s=ReleaseAuditObserve(FALSE);if(s!=EFI_SUCCESS)return s;
+#endif
     s=Alive(t,&p);
+#ifdef GU_RELEASE_PARENT_AUDIT
+    EFI_TPL old=ReleaseAudit.Raise(TPL_NOTIFY);
+#else
     EFI_TPL old=bs->RaiseTPL(TPL_NOTIFY);
+#endif
     if(s==EFI_SUCCESS)s=Snapshot(bs,&current);
     if(s==EFI_SUCCESS && !ExpectedGraph(&p,&original,&current,stage-1))s=EFI_NOT_READY;
     if(s==EFI_SUCCESS)s=Driver(bs,stage==1?p.OutAgent:p.GfxAgent,stage==1?&OutFile:&GfxFile,stage==1?GU_CONSOLE_TEXT_SIZE:GU_CONSOLE_GFX_SIZE,stage==1?GU_CONSOLE_TEXT_STOP:GU_CONSOLE_GFX_STOP,GU_CONSOLE_TEXT_VERSION,EfiBootServicesCode);
+#ifdef GU_RELEASE_PARENT_AUDIT
+    ReleaseAudit.Restore(old);
+#else
     bs->RestoreTPL(old);
+#endif
     if(s!=EFI_SUCCESS)return s;
     /* Flush intent BEFORE mutation. Never pass a virtual console, AMD, PCI
      * parent, NULL driver, image handle, or the AMI runtime driver here. */
+#ifdef GU_RELEASE_PARENT_AUDIT
+    if(!ReleaseAuditBound())return ReleaseAuditStatus(EFI_NOT_READY);
+    s=ReleaseAudit.Disconnect(p.Rtx,stage==1?p.OutAgent:p.GfxAgent,NULL);
+#else
     s=bs->DisconnectController(p.Rtx,stage==1?p.OutAgent:p.GfxAgent,NULL);
+#endif
     recorded=log(context,stage==1?"detach-rtx-textout-return":"detach-rtx-graphics-console-return",s);
     if(s!=EFI_SUCCESS || recorded!=EFI_SUCCESS)return s==EFI_SUCCESS?recorded:s;
     s=Snapshot(bs,&current);
@@ -532,6 +558,15 @@ EFI_STATUS GuPrepareConsole(EFI_SYSTEM_TABLE *t,GU_PREPARE_LOG log,VOID *context
   PreparedPlan=p;PreparedGraph=&original;PreparedReady=TRUE;
   return GuVerifyPreparedConsole(t);
 }
+#ifdef GU_RELEASE_PARENT_AUDIT
+EFI_STATUS GuPrepareConsole(EFI_SYSTEM_TABLE *t,GU_PREPARE_LOG log,VOID *context) {
+  if(ReleaseAudit.Active || ReleaseAudit.PrepareEntered)return EFI_ALREADY_STARTED;
+  ReleaseAudit.PrepareEntered=TRUE;ReleaseAudit.Active=TRUE;
+  EFI_STATUS s=PrepareConsoleAudited(t,log,context);
+  ReleaseAudit.Active=FALSE;
+  return ReleaseAuditStatus(s);
+}
+#endif
 EFI_STATUS GuVerifyPreparedConsole(EFI_SYSTEM_TABLE *t) {
   if(!PreparedReady || !t || !t->BootServices || !PreparedGraph)return EFI_NOT_READY;
   PLAN *p=&PreparedPlan;static GRAPH final;

@@ -13,6 +13,8 @@ BOOLEAN GuCheckConfig(const UINT32 Config[64], UINTN Segment, UINTN Bus,
 
 /* Path must point to readable memory through its terminator, up to MaxBytes.
    MaxBytes is a read bound, not necessarily the exact allocation length.
-   Returns 1 for the exact captured AMD GOP route/ADR, 2 for RTX, 0 otherwise.
-   Route alone does not establish PCI identity: validate the GOP PCI parent. */
+   Returns 1 for AMD, 2 for RTX, 0 otherwise. Nonheadless original B650M discovers only
+   the AMD ADR payload on its exact root/PCI ancestry; the app must pin the full
+   path and independently validate the GOP PCI parent. Other profiles retain
+   their captured AMD ADR policy. Route classification alone grants no access. */
 int GuDisplayPath(const EFI_DEVICE_PATH_PROTOCOL *Path, UINTN MaxBytes);

@@ -23,6 +23,9 @@ HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('compatibility_profile', HERE / 'make-profile.py')
 mp = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mp)
+spec = importlib.util.spec_from_file_location('compatibility_parent', HERE / 'parent_baseline.py')
+parent = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(parent)
 DIAG_LIMIT = 8 * 1024 * 1024
 TOTAL_LIMIT = 64 * 1024 * 1024
 CHECKER_VERSION = 1
@@ -178,7 +181,7 @@ def observation_reason(error):
 
 def shared_observations(name, text, blocks):
     """Typed model/topology observations, never addresses or raw capture text."""
-    adapters = []
+    adapters, primary_configs = [], []
     for block in blocks.values():
         cfg = mp.pci_config(block['raw'])
         if not cfg or cfg[2] >> 24 != 3:
@@ -192,6 +195,8 @@ def shared_observations(name, text, blocks):
                 location = dict(segment=segment, bus=bus, device=device, function=function)
         adapters.append({'pci_id': f'{cfg[0]:08x}', 'subsystem_id': f'{cfg[11]:08x}',
                          'class_revision': f'{cfg[2]:08x}', 'location': location})
+        if cfg[0] & 0xffff == 0x10de:
+            primary_configs.append(cfg)
     adapters.sort(key=lambda adapter: json.dumps(adapter, sort_keys=True))
     edges = [edge for block in blocks.values() for edge in block['edges'] if edge[0] == mp.EDID_DISCOVERED]
     result = {'capture': name, 'available': True,
@@ -205,6 +210,10 @@ def shared_observations(name, text, blocks):
               'chip_id': None, 'device_memory_size_mib': None,
               'register_snapshot': 'not_recorded', 'firmware_bindings': None,
               'firmware_bindings_truncated': None}
+    # Optional ancestry observations are comparative only. The collector and the
+    # primary probe read PCI attributes at different times, so do not merge them
+    # into profile admission or require their attribute snapshots to match.
+    result['parent_baseline'] = parent.parse(text, adapters, primary_configs)
     try:
         values, statuses = mp.probe_mmio(text)
         result['register_snapshot'] = ('complete' if all(offset in values for offset in mp.COLD)

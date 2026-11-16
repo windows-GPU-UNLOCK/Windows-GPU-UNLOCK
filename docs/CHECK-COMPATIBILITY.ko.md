@@ -60,6 +60,16 @@ EDID `by_driver`는 정확히 `EFI_OPEN_PROTOCOL_BY_DRIVER`인 기록 수, `acti
 자료나 보고서를 업로드하지 않습니다. 공유할 내용은 직접 확인하고, 원본 펌웨어
 덤프는 이슈에 첨부하지 마세요.
 
+새 format-2 보고서에는 선택 항목인 `parent_baseline` 관측이 포함될 수 있습니다.
+NVIDIA GPU와 PCI-to-PCI 브리지 경로를 형식이 제한된 ID, class/revision, BDF,
+command/decode 속성, 브리지 secondary/subordinate bus 번호로 요약합니다. 원시 PCI
+config, BAR, 브리지 window, EFI 포인터·handle·path, 의미를 제한할 수 없는 64비트
+속성은 제외합니다. 상태는 `recorded`, `unavailable`, `invalid`, `not_recorded`이며,
+선택 기록의 누락이나 형식 오류는 기본 검사 상태·프로필 판정·쓰기 자격에 영향을 주지
+않습니다. 기본 `pci-attributes` 관측과 부모 경로 snapshot은 별도 시점의 읽기이므로
+서로 다를 수 있습니다. 이 확장은 format 2를 유지하며 자료 출처나 실기기 호환성을
+증명하지 않습니다.
+
 검토한 JSON을 [호환성 이슈 양식](https://github.com/impacifist/Windows-GPU-UNLOCK/issues/new?template=compatibility.yml)의
 선택 항목 **Offline compatibility report**에 붙여 넣으세요. 보드·BIOS, 실제 화면 연결,
 소스·빌드 정보, VBIOS 변경 이력은 다른 항목에 적습니다. 이 보고서로는 자동 판별할 수 없습니다.
@@ -87,6 +97,13 @@ Git에서 제외합니다. 공유 전 내용을 확인하세요. 비교기는 fo
 관측값을 비교할 뿐 부팅 이력을 검증하지 않습니다. 서명·출처를 검증하지 않으며 보고서의
 자유 입력 문구도 재출력하지 않습니다. 차이는 공통 개선의 조사 단서이고, 유사하다는
 이유만으로 다른 프로필을 적용해도 된다는 뜻은 아닙니다.
+선택 부모 baseline은 양쪽 보고서 모두 유효한 `recorded` 관측일 때만 비교합니다.
+이전 format-2 보고서에 부모 항목이 없으면 `same`이 아니라 `unavailable`입니다.
+비교는 위에 설명한 공개 허용 필드만 다루며 장비 식별이나 프로필 적격성을 증명하지
+않습니다.
+관리자용 `research/profile/test_parent_probe.py`는 실제 진단 C 코드의 출력을 같은 Python
+검사기와 JSON 비교기에 전달해 연결을 시험합니다. EFI 서비스는 모두 RAM 모의 구현이므로
+형식·연결 검증이며 실기기 호환성 증거는 아닙니다.
 종료 코드 `0`은 차이 여부와 무관하게 비교 완료, `2`는 자료 오류나 비교 보류입니다.
 Windows 환경 수집기 보고서는 별도 형식이므로 이 비교기에 입력할 수 없습니다.
 

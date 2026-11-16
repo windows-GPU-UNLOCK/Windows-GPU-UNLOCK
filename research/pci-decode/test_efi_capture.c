@@ -9,7 +9,16 @@ static GU_DS_CAPTURE_TARGET Target;
 static BOOLEAN CaptureReentry,FreezeTarget,Frozen;
 static unsigned ReplaceAt;
 static EFI_PCI_IO_PROTOCOL ReplacementIo;
+#ifdef GU_DS_POST_STOP_TEST
+static void (*CaptureExtraHook)(void);
+static BOOLEAN CaptureHookBusy;
+#endif
 static void Hook(void) {
+#ifdef GU_DS_POST_STOP_TEST
+  if(CaptureHookBusy)return;
+  CaptureHookBusy=TRUE;
+  if(CaptureExtraHook)CaptureExtraHook();
+#endif
   if(CaptureReentry) {
     unsigned calls=M->Calls;
     Check(GuDsEfiCapture(&Capture,&M->Boot,&Target)==EFI_ALREADY_STARTED,"same capture context cannot reenter or reset");
@@ -19,6 +28,9 @@ static void Hook(void) {
       "a fresh context cannot reenter the per-image capture workspace");
   }
   if(FreezeTarget && !Frozen){Frozen=TRUE;Target.PciId^=1;Target.Path[8]^=1;Target.Bus^=1;}
+#ifdef GU_DS_POST_STOP_TEST
+  CaptureHookBusy=FALSE;
+#endif
 }
 static EFI_STATUS EFIAPI CaptureHandle(EFI_HANDLE h,EFI_GUID *g,VOID **p){
   Hook();EFI_STATUS s=Handle(h,g,p);
@@ -39,6 +51,10 @@ static EFI_STATUS EFIAPI CaptureAttributes(EFI_PCI_IO_PROTOCOL *p,EFI_PCI_IO_PRO
 static void CaptureSetup(MODEL *m,unsigned parents,UINTN segment) {
   Setup(m,parents,segment);memset(&Capture,0,sizeof(Capture));memset(&Target,0,sizeof(Target));
   CaptureReentry=FreezeTarget=Frozen=FALSE;ReplaceAt=0;
+#ifdef GU_DS_POST_STOP_TEST
+  CaptureExtraHook=NULL;
+  CaptureHookBusy=FALSE;
+#endif
   m->Boot.HandleProtocol=CaptureHandle;m->Boot.LocateDevicePath=CaptureLocate;
   for(unsigned i=0;i<m->Count;i++) {
     m->Devices[i].Io.GetLocation=CaptureLocation;m->Devices[i].Io.Pci.Read=CaptureRead;m->Devices[i].Io.Attributes=CaptureAttributes;
@@ -61,7 +77,11 @@ static void CaptureRefuse(MODEL *m) {
   for(unsigned i=0;i<16;i++)Check(!memcmp(&Capture.Bindings[i],&binding,sizeof(binding)),"failed capture publishes no partial binding");
   unsigned calls=m->Calls;Check(Collect(m)==EFI_ALREADY_STARTED && m->Calls==calls,"failed capture cannot be retried");ReadOnly(m);
 }
+#if defined(GU_DS_OWNED_TEST) || defined(GU_DS_POST_STOP_TEST)
+int capture_fixture_main(void) {
+#else
 int main(void) {
+#endif
   MODEL m;
   for(unsigned parents=1;parents<=15;parents++)for(unsigned segment=0;segment<3;segment++) {
     CaptureSetup(&m,parents,segment==2?0xffff:segment);CaptureReentry=TRUE;

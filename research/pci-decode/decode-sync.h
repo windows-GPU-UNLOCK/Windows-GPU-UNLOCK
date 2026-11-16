@@ -19,7 +19,8 @@ typedef enum {
 } GU_DS_RESULT;
 
 /* Caller owns one zero-initialized object per authorized transaction. Never reset
- * it to retry. This core cannot police creation of a different caller object. */
+ * it to retry. Per-image workspace blocks callback reentry through fresh objects;
+ * it is not a CPU lock and cannot police new objects after a completed call. */
 typedef struct {
   BOOLEAN Started, Attempted, PostObserved;
   EFI_STATUS DisableStatus, ObservationStatus;
@@ -28,3 +29,6 @@ typedef struct {
 
 GU_DS_RESULT GuDecodeSync(GU_DS_TRANSACTION *Transaction, const GU_DS_OPS *Ops,
                          const GU_DS_SNAPSHOT *Expected);
+/* Internal alias guard for adapters freeing firmware query buffers. No callback
+ * or address disclosure; covers this image's private core workspace. */
+BOOLEAN GuDecodeWorkspaceOverlap(const VOID *Buffer,UINTN Bytes);
