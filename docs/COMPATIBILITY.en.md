@@ -4,8 +4,8 @@
 
 **2026-10-29 issue audit:** [reported setups and profile decisions](CONFIRMED-SETUPS.en.md) · [all 105 issues](ISSUE-AUDIT.en.md). The six fixed profiles below are not the full list of reported LOCAL successes.
 
-The current source contains six exact-machine profiles with recorded hardware
-results: three internal headless configurations and three headless USB configurations.
+The current source contains seven exact-machine profiles with recorded hardware
+results: four internal headless configurations and three headless USB configurations.
 The original B650M run was performed by the maintainer; B660M, X870 and B660-PLUS evidence
 comes from contributors ([PR #5](https://github.com/impacifist/Windows-GPU-UNLOCK/pull/5),
 [PR #10](https://github.com/impacifist/Windows-GPU-UNLOCK/pull/10),
@@ -25,6 +25,7 @@ generation and its separate contributor reports are described below.
 | `b660plus-3060` | ASUS PRIME B660-PLUS D4 BIOS 3010 / i5-12600KF (no iGPU) / GA104 RTX 3060 12GB | USB only, two display children, CSM off; contributor report |
 | `h610m-3060` | Gigabyte H610M H BIOS FC / i5-14400 (iGPU enabled, no GOP) / Gigabyte GA106 RTX 3060 12GB | USB only, two display children; contributor report |
 | `b660m-3090ti` | ASUS TUF GAMING B660M-E D4 BIOS 4003 / i7-12700F (no iGPU) / Colorful RTX 3090 Ti | Internal; one contributor-reported cold boot |
+| `b760m-3080lhr` | Maxsun MS-Terminator B760M D4 BIOS H7.8G / i5-12490F (no iGPU) / Maxsun RTX 3080 10 GB LHR | Internal; contributor report (issue #28) |
 
 The latest tag is the source-only pre-release v0.3.1; this source tree includes
 later work, including the USB route and X870 profile. Hardware reports describe
@@ -199,6 +200,53 @@ transaction replay through `test-all.ps1` is not wired for this profile; the pub
 evidence does not provide its exact FWSEC image offset/size or private inputs.
 Those tests remain blocked rather than accepting an inferred firmware layout.
 
+## Profile 7: Maxsun MS-Terminator B760M D4 / RTX 3080 LHR (aggregate console)
+
+[Issue #28](https://github.com/impacifist/Windows-GPU-UNLOCK/issues/28) contributes
+hardware-verified internal headless results from five attended cold boots (through 2026-11-16) on
+Maxsun MS-Terminator B760M D4 BIOS H7.8G, i5-12490F (no iGPU) and an RTX 3080
+10 GB LHR (GA102). The firmware
+exposes the nvgop display child with the standard
+`EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER` open attribute (`0x8`) and an optional
+AMI DevicePath consumer; the `GU_TOPO_B760M` allowances handle those
+differences. The profile remains exact-machine only.
+
+| Common GPU/platform item | Validated value |
+|---|---|
+| Card | Maxsun RTX 3080 10 GiB LHR (GA102) |
+| PCI identity | `10de:2216`, subsystem `7377:2000` |
+| GPU BDF | `0000:01:00.0` |
+| Chip / VRAM register | `0xb72000a1` / `0x2800` MiB |
+| BAR0 | `0x80000000`, 16 MiB |
+| PROM SHA256 | `88a6bce1bd790d3e4c542cccafbbd88a7ef73e2e0bef34310d7e8ed780e56d25` |
+| Motherboard / BIOS | Maxsun MS-Terminator B760M D4 / H7.8G |
+| CPU | Intel Core i5-12490F (no iGPU) |
+| Recorded Windows / driver | Windows 11 IoT Enterprise LTSC 26100 / NVIDIA 617.14 (2026-10-26), 621.14 (2026-11-11) and 621.24 (2026-11-16) |
+| UEFI / Secure Boot | x64 / disabled |
+| Selector profile | `entryLatchedSs1Full`; targets SS0 `0x88888888`, SS1 `0x8` |
+
+Each attended run recorded one unlock transaction, a direct Windows handoff and
+display recovery. The current source's verified pair is the 2026-11-16 wrapper
+`1C18772A9BC82EE1D54ABEECAAE96302F794DACBD458E7332598E4481945DFED` and child `218E2E4C1B65047EC43ED7D3BE10F779B715D01B3F419511CABC057FBCAE25B3`.
+The 2026-11-16 log recorded `FINAL status=0 stage=transaction attempted=1
+driver_release=0 clean=1` after a zero-status preflight, transaction and
+Windows handoff. The 2026-11-11 run verified the pre-hardening wrapper
+`96CBD5C2B006E37D6135F18347E023D674DD8E241D8A17B3DD3A07F5D4EC89D6`. Earlier attended pairs are 2026-10-26 `64D887E4…`/`1265F152…`,
+2026-11-03 `4BCB8FCE…`/`476E5729…` and 2026-11-05
+`9632EA21…`/`218E2E4C…`; each applies to its recorded source. The 2026-10-26
+and 2026-11-03 builds used clang/lld-link 23.1.4; the 2026-11-05, 2026-11-11
+and 2026-11-16 builds use the pinned 20.1.8.
+
+Measured on the same cuBLAS GEMM protocol (n=4096, FP32 accumulation, three-run
+medians): FP16 109.8 TFLOPS and BF16 113.2 TFLOPS (locked 56.4/59.9); FP32 was
+unchanged. Each run is one boot and one before/after pair; the latest is the
+2026-11-16 run. S3 sleep invalidates the
+unlock and there is no resume path; repeated automatic cold boots,
+games/ComfyUI, long-term stability and other RTX 3080 cards remain unverified.
+
+Select this profile with `research/headless/build-unlock.ps1 -HardwareProfile b760m-3080lhr`
+and `internal-boot/Configure.ps1 -HardwareProfile b760m-3080lhr`.
+
 ## Reported local-profile success
 
 [Issue #105](https://github.com/impacifist/Windows-GPU-UNLOCK/issues/105) reports a
@@ -244,7 +292,7 @@ Other 3070 PCI IDs, VBIOS/driver combinations and console layouts need separate 
 | Default automatic startup across repeated cold boots | Not established by the limited supervised runs |
 | Another RTX 3090, even a Founders Edition in another PC | Unverified; exact checks may reject |
 | Another ASUS BIOS, AMD board/CPU or Intel host | Unverified; separate profile and validation required |
-| CPU without iGPU (Intel host, aggregate console) | One contributor-reported profile above; still not generalized |
+| CPU without iGPU (Intel host, aggregate console) | Contributor-reported profiles 2, 6 and 7 above; still not generalized |
 | Multiple discrete GPUs, laptop/hybrid setup | Unverified |
 | Other NVIDIA models/architectures | Separate GPU port and validation required |
 | AMD Radeon / Intel discrete unlock target | No unlock implementation here |
