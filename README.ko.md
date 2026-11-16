@@ -2,7 +2,7 @@
 
 [English](README.md) | **한국어**
 
-기여자 도구: [진입점 목록 및 정리 제안](docs/ENTRYPOINT-PLAN.ko.md).
+기여자 도구: [진입점 과거 검토안](docs/ENTRYPOINT-PLAN.ko.md) · [호환성 확장 로드맵](docs/PORTABILITY.ko.md).
 
 커뮤니티 기여로 확장하는 실험용 UEFI GPU 언락과 Windows 직접 인계 구현입니다.
 
@@ -218,7 +218,7 @@ Headless는 별도 컴파일 프로필입니다. 정확한 GPU·PROM·PCI 상태
 VBIOS 플래싱이나 Windows 드라이버 교체는 절차에 포함하지 않습니다. 기록된 실행에서
 617.14 드라이버는 그대로였습니다. Host mock 시험이 지원 하드웨어를 추가하지는 않습니다.
 새 시스템은 [호환성 보고](docs/CONTRIBUTING.ko.md)와
-[포팅 기준](docs/PORTABILITY.en.md)을 참고하세요.
+[포팅 기준](docs/PORTABILITY.ko.md)을 참고하세요.
 검증된 하드웨어 범위 안의 새 PC는 [로컬 프로필 생성 절차](docs/NEW-MACHINE.en.md)를
 이용할 수 있습니다. 이 실험적 절차는 NVIDIA 디스플레이 장치 정보를 수집하되,
 상세 GPU 읽기는 검토된 PCI·BAR 상태의 단일 RTX 3090 / 3090 Ti, RTX 3060 12GB, RTX 3060 Ti `24c9` 또는 RTX 3070 `2484` 식별자로 제한합니다.

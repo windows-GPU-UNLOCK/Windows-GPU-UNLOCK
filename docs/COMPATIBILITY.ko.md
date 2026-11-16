@@ -247,4 +247,4 @@ nvgop `60009`의 기존 검증 코드 해시 조합을 허용합니다. subsyste
 
 상수·PROM 해시를 바꾸거나 화면 검사를 삭제하는 것만으로 검증된 포팅이 되지 않습니다.
 새 지원에는 메모리/WPR 배치·펌웨어 호환성·소유권·DMA 정리·실패 경로의 근거가 필요합니다.
-[포팅 기준](PORTABILITY.en.md) / [호환성 보고](CONTRIBUTING.ko.md).
+[포팅 기준](PORTABILITY.ko.md) / [호환성 보고](CONTRIBUTING.ko.md).

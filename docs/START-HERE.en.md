@@ -13,6 +13,12 @@ You can help this project **without attempting an unlock**. Start with a Windows
 | Existing `DIAGnn.TXT`, `IMGnn.BIN` and `PROM.BIN` files from your PC | [**2 · Check existing files**](#2--check-existing-files) | An offline result with reasons |
 | A request to collect new EFI captures | [**3 · Plan a capture**](#3--plan-a-capture) | A separate attended boot procedure |
 
+These routes answer different questions. A Windows inventory needs no boot. The
+offline checker assesses files you already have. EFI capture is a separate,
+firmware-dependent observation and is optional for reporting. Local profile
+generation, host tests, package build and physical staging are later steps—not
+part of inventory or offline assessment.
+
 ## Before you start · Open the project folder
 
 1. On the [project page](https://github.com/impacifist/Windows-GPU-UNLOCK), select **Code → Download ZIP**.
@@ -82,9 +88,9 @@ The simplest way is to copy the terminal's report into Notepad and save it under
 
 An EFI capture collects information before Windows starts. It is **not** the Windows-only inventory above. Even a diagnostic that avoids GPU writes can hang or fail to return to Windows, requiring manual power-off. Do not disable security features or boot firmware merely to complete an issue form.
 
-If you choose to proceed, use the [new-machine capture guide](NEW-MACHINE.en.md) and review its prerequisites and recovery limits first. That page also describes later profile/build stages; **stop at the capture boundary** when the goal is only to collect evidence. No unlock run is required for a compatibility report.
+If you choose to proceed, use the [new-machine guide](NEW-MACHINE.en.md) and review its prerequisites and recovery limits first. The current `new-machine.ps1` requires an `-Assets` argument even though the initial probe-build/stage branch does not use those assets. It stages the generic read-only probe; after enough captures exist, a later invocation continues into profile generation, host tests and package build even without `-StageUnlock`. That switch gates copying the completed unlock package/assets to the USB only. If your goal is only evidence collection, stop after the captures and do not resume into profile/package work. No unlock run is required for a compatibility report.
 
-The guided `Start-Capture.cmd` launcher is being developed in [PR #112](https://github.com/impacifist/Windows-GPU-UNLOCK/pull/112); it is not part of this main snapshot. Do not expect a downloaded main ZIP to contain it yet.
+At this source snapshot, a dedicated beginner `Start-Capture.cmd` is not present in this checkout. PR112 remains a draft (reported mergeable). PR177 and PR178 are open and approved at their reviewed heads, but conflict with recorded bases that predate current `main`; PR188 has merged. Do not assume any branch-only workflow is included in a downloaded main ZIP. Track the contract and integration sequence in the [portability roadmap](PORTABILITY.en.md#integrated-work-plan).
 
 ---
 

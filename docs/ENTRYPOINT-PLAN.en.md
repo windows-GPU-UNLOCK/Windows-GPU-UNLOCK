@@ -2,7 +2,7 @@
 
 **English** | [한국어](ENTRYPOINT-PLAN.ko.md)
 
-Inventory against main commit `1f8776e` (2026-10-30). This is a proposal for the Kanban card **Inventory repository entry points and plan cleanup**, assigned to DeclanFrampton. It does not move, remove or deprecate any command. Maintainer agreement is required before applying a cleanup map.
+Historical inventory against main commit `1f8776e` (2026-10-30). This remains a proposal for the Kanban card **Inventory repository entry points and plan cleanup**, assigned to DeclanFrampton; it is not a current file inventory. It does not move, remove or deprecate any command. Maintainer agreement is required before applying a cleanup map. For the current product sequence and integration checkpoint, see the [portability roadmap](PORTABILITY.en.md#integrated-work-plan).
 
 ## Keep the public boundaries explicit
 
@@ -11,7 +11,7 @@ Inventory against main commit `1f8776e` (2026-10-30). This is a proposal for the
 | [README](../README.md), [compatibility](COMPATIBILITY.en.md) | Choose an exact supported route; not an execution command | Keep as navigation; link one canonical guide per route |
 | [collect_compatibility.py](../tools/collect_compatibility.py) | Windows inventory; prints reviewed data, no upload or unlock | Keep as inventory-only entry |
 | [check-compatibility.py](../research/profile/check-compatibility.py) | Offline assessment of existing captures; no probe execution or profile generation | Keep as offline checker; do not merge with a staging command |
-| [new-machine.ps1](../research/profile/new-machine.ps1) | Resumable probe/profile/test/package workflow; can stage USB files; unlock staging requires `-StageUnlock` | Keep existing command while reviewing PR112; do not advertise it as only an inventory tool |
+| [new-machine.ps1](../research/profile/new-machine.ps1) | Resumable probe/profile/test/package workflow; can stage USB files; unlock staging requires `-StageUnlock` | No migration is approved; reconcile PR112/PR178 in the [current roadmap](PORTABILITY.en.md#integrated-work-plan) before changing this entry point |
 | [build-probe.ps1](../research/profile/build-probe.ps1) | Builds generic diagnostic EFI files locally; booting that EFI is a separate hardware operation | Keep low-level diagnostic builder; frontends should call it rather than duplicate it |
 | [Configure.ps1](../internal-boot/Configure.ps1), [Build.ps1](../internal-boot/Build.ps1) | Configure exact internal profiles and build manual/automatic EFI pairs | Keep separate configuration and build boundaries |
 | [Headless.ps1](../internal-boot/Headless.ps1), [Install.ps1](../internal-boot/Install.ps1) | Existing dedicated-ESP installation/registration and automatic-boot policy actions; may change boot configuration/settings | Keep explicit installation commands; never invoke from inventory or offline review |
@@ -31,11 +31,11 @@ Generated `build` directories, assets, captured BIN files, `research/profile/loc
 ## Proposed sequence for review
 
 1. Agree navigation and command ownership before changing paths. Keep existing commands working throughout any later migration.
-2. Reconcile [PR112](https://github.com/impacifist/Windows-GPU-UNLOCK/pull/112), which owns the contributor doctor/capture launcher. Its branch has additional local acceptance work; do not copy that frontend into another PR or describe it as merged main behavior.
+2. Reconcile the contributor-tool stack before further overlapping frontend work. PR112 remains a draft and was reported mergeable; PR177/PR178 are open and conflict with their recorded bases. Compare exact heads with current main, decide what work is authoritative, and do not describe branch-only behavior as merged main behavior.
 3. Implement a small, route-specific change only after agreement. If a public command is eventually replaced, first add a documented compatibility wrapper with a bounded migration period; no deprecation is approved here.
 4. Add checks appropriate to that change: documented command resolution, parameter compatibility, output/manifest contracts and refusal paths. Host mocks do not establish USB selection, EFI execution or Windows recovery.
 
-No `.github/workflows` directory exists at this inventory revision. The CI card needs a separate inventory of local test prerequisites and private-asset dependencies before introducing runners; absence of hosted workflow files does not mean host tests are absent.
+At the historical inventory revision there was no `.github/workflows` directory. Recheck the live tree before acting on that observation. The CI card needs an inventory of local test prerequisites and private-asset dependencies before introducing runners; absence of hosted workflow files does not mean host tests are absent.
 
 ## Acceptance still outstanding
 

@@ -2,7 +2,7 @@
 
 [English](ENTRYPOINT-PLAN.en.md) | **한국어**
 
-2026-10-30 main 커밋 `1f8776e` 기준 목록입니다. DeclanFrampton에게 배정된 Kanban 카드 **Inventory repository entry points and plan cleanup**의 검토 제안입니다. 명령을 이동, 삭제하거나 폐기하지 않습니다. 정리 계획 적용 전 관리자 합의가 필요합니다.
+2026-10-30 main 커밋 `1f8776e`에 대한 과거 목록입니다. DeclanFrampton에게 배정된 Kanban 카드 **Inventory repository entry points and plan cleanup**의 제안이며 현재 파일 목록은 아닙니다. 명령을 이동, 삭제하거나 폐기하지 않습니다. 정리 계획 적용 전 관리자 합의가 필요합니다. 현재 제품 순서와 통합 상태는 [포팅 로드맵](PORTABILITY.ko.md#통합-작업-계획)을 참고하세요.
 
 ## 공개 경계 유지
 
@@ -11,7 +11,7 @@
 | [README](../README.ko.md), [호환성](COMPATIBILITY.ko.md) | 정확한 지원 경로 선택; 실행 명령이 아님 | 경로별 대표 안내 연결 유지 |
 | [collect_compatibility.py](../tools/collect_compatibility.py) | Windows 인벤토리 출력; 업로드/언락 없음 | 인벤토리 전용 유지 |
 | [check-compatibility.py](../research/profile/check-compatibility.py) | 기존 캡처 오프라인 평가; 프로브 실행/프로필 생성 없음 | 스테이징과 분리 유지 |
-| [new-machine.ps1](../research/profile/new-machine.ps1) | 프로브/프로필/검사/패키지 재개 흐름; USB 파일 스테이징 가능; 언락 스테이징은 `-StageUnlock` 필요 | PR112 검토 중 기존 명령 유지; 단순 인벤토리로 소개하지 않음 |
+| [new-machine.ps1](../research/profile/new-machine.ps1) | 프로브/프로필/검사/패키지 재개 흐름; USB 파일 스테이징 가능; 언락 스테이징은 `-StageUnlock` 필요 | 명령 변경은 승인되지 않았습니다. 변경 전 [최신 로드맵](PORTABILITY.ko.md#통합-작업-계획)에 따라 PR112/PR178 스택을 조정합니다. |
 | [build-probe.ps1](../research/profile/build-probe.ps1) | 일반 진단 EFI 파일 로컬 빌드; 실제 EFI 부팅은 별도 하드웨어 작업 | 저수준 빌더 유지; 프런트엔드에서 재사용 |
 | [Configure.ps1](../internal-boot/Configure.ps1), [Build.ps1](../internal-boot/Build.ps1) | 정확한 내부 프로필 설정 및 수동/자동 EFI 쌍 빌드 | 설정/빌드 경계 유지 |
 | [Headless.ps1](../internal-boot/Headless.ps1), [Install.ps1](../internal-boot/Install.ps1) | 기존 전용 ESP 설치/등록 및 자동 부팅 정책; 부팅 구성/설정 변경 가능 | 명시적인 설치 명령 유지; 인벤토리/오프라인 검토에서 실행하지 않음 |
@@ -31,11 +31,11 @@
 ## 검토할 순서
 
 1. 경로 변경 전 탐색 구조와 명령 소유권에 합의합니다. 이후 마이그레이션 중에도 기존 명령을 유지합니다.
-2. 기여자 doctor/캡처 런처를 담당하는 [PR112](https://github.com/impacifist/Windows-GPU-UNLOCK/pull/112)를 먼저 조율합니다. 해당 브랜치의 로컬 승인 검증 작업을 다른 PR에 복사하거나 main에 병합된 기능으로 설명하지 않습니다.
+2. 겹치는 기여자 도구 구현을 더하기 전에 PR 스택을 조정합니다. PR112는 draft이며 mergeable로 조회됐고 PR177/PR178은 open이며 기록된 base와 충돌합니다. 정확한 head와 최신 main을 비교해 기준 구현을 정하고, 브랜치 전용 기능을 main에 병합된 것처럼 설명하지 않습니다.
 3. 합의 후 경로별 작은 변경을 구현합니다. 공개 명령을 대체한다면 먼저 문서화된 호환 래퍼와 한정된 전환 기간을 마련합니다. 이 제안은 폐기를 승인하지 않습니다.
 4. 변경에 맞는 명령 해석, 매개변수 호환성, 출력/매니페스트 계약, 거부 경로를 검사합니다. 호스트 모의 검사는 USB 선택, EFI 실행, Windows 복구를 입증하지 않습니다.
 
-이 리비전에는 `.github/workflows` 디렉터리가 없습니다. CI 카드는 실행기를 도입하기 전에 로컬 검사 전제 조건과 비공개 자산 의존성을 별도로 조사해야 합니다. 호스팅 워크플로 파일이 없다고 호스트 검사도 없는 것은 아닙니다.
+이 과거 인벤토리 시점에는 `.github/workflows` 디렉터리가 없었습니다. 그 관찰을 현재 작업에 적용하기 전에 실제 트리를 다시 확인하세요. CI 카드는 실행기를 도입하기 전에 로컬 검사 전제 조건과 비공개 자산 의존성을 별도로 조사해야 합니다. 호스팅 워크플로 파일이 없다고 호스트 검사도 없는 것은 아닙니다.
 
 ## 남은 승인 조건
 

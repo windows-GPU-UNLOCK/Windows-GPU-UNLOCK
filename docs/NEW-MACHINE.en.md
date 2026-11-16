@@ -150,6 +150,9 @@ Needs: LLVM (`clang`, `lld-link`), MSVC build tools, Python 3.10+, the five firm
 
 Run the same command repeatedly; each run does the next step.
 
+> [!IMPORTANT]
+> **This is a resumable profile/package workflow, not a capture-only command.** The required `-Assets` argument is not used in the first probe-build/stage branch, but is required on the command line. After enough captures exist, the next invocation continues through profile generation, source-bound host tests and USB package build even when `-StageUnlock` is omitted. That switch only copies the completed unlock package/assets onto USB. If you only need evidence for a compatibility report, stop after the required captures; do not resume into profile/package work. The optional generic diagnostic itself may fail to return from firmware, so read the recovery limits below before choosing to boot it.
+
 1. **Probe.** The first run builds the generic read-only probe
    (`research/profile/build-probe.ps1`, `-DGU_PROBE_GENERIC`) and copies it to the stick as
    `EFI\BOOT\BOOTX64.EFI`, keeping any previous loader in `RTX3090-UNLOCK\backup\` and earlier

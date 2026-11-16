@@ -46,7 +46,7 @@ Secure Boot 상태, 실제 모니터 연결, PCI BDF/BAR, PROM, cold 상태와 �
 
 펌웨어·VBIOS/PROM·BitLocker 복구 키·serial·UUID·원시 시스템 보고서를 첨부하지 않습니다. 기존 로그의 개인 경로도 확인합니다. 이 도구는 자동 업로드하지 않습니다.
 
-실제 지원 추가에는 카드·펌웨어·메모리 배치 검토, 사전 부팅 소유권과 실패 정리, Windows 인계 및 하드웨어 측정 근거가 필요합니다. [지원 확대 설계](PORTABILITY.en.md)를 참고하세요. 원본 API 근거는 [영문 안내](CONTRIBUTING.en.md)의 Microsoft 문서에 있습니다.
+실제 지원 추가에는 카드·펌웨어·메모리 배치 검토, 사전 부팅 소유권과 실패 정리, Windows 인계 및 하드웨어 측정 근거가 필요합니다. [지원 확대 로드맵](PORTABILITY.ko.md)을 참고하세요. 원본 API 근거는 [영문 안내](CONTRIBUTING.en.md)의 Microsoft 문서에 있습니다.
 
 [장비 검증 기록](VALIDATION.ko.md)으로 기존 관측·transaction·Windows 복구·계산·수명주기 근거를
 구분할 수 있습니다. 이 문서를 채우기 위한 새 실행은 필요하지 않습니다.
