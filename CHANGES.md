@@ -123,22 +123,23 @@
   its Stop offsets vary per boot. Existing profiles and their build hashes are
   unchanged.
 - Attended cold boots on 2026-10-26 (wrapper `64D887E4…`, child `1265F152…`),
-  2026-11-03 (`476E5729…`/`4BCB8FCE…`), 2026-11-05
-  (`9632EA21…`/`218E2E4C…`) and 2026-11-11 (`96CBD5C2…`/`218E2E4C…`)
-  each completed the unlock transaction, a direct Windows handoff and display
-  recovery. The current source's child remains
-  `218E2E4C1B65047EC43ED7D3BE10F779B715D01B3F419511CABC057FBCAE25B3`;
-  the 2026-11-11 run verified the pre-hardening wrapper
-  `96CBD5C2B006E37D6135F18347E023D674DD8E241D8A17B3DD3A07F5D4EC89D6`.
-  The hardened wrapper builds as
-  `1C18772A9BC82EE1D54ABEECAAE96302F794DACBD458E7332598E4481945DFED`
-  and its attended cold boot is pending. Earlier pairs apply to their recorded
-  sources. The 10-26/11-03 builds used clang/lld-link 23.1.4; the 11-05/11-11
-  builds use the pinned 20.1.8.
+  2026-11-03 (`4BCB8FCE…`/`476E5729…`), 2026-11-05
+  (`9632EA21…`/`218E2E4C…`), 2026-11-11 (`96CBD5C2…`/`218E2E4C…`) and
+  2026-11-16 (`1C18772A…`/`218E2E4C…`) each completed the unlock transaction,
+  a direct Windows handoff and display recovery. The current source's verified
+  pair is the 2026-11-16 wrapper
+  `1C18772A9BC82EE1D54ABEECAAE96302F794DACBD458E7332598E4481945DFED` and child
+  `218E2E4C1B65047EC43ED7D3BE10F779B715D01B3F419511CABC057FBCAE25B3`.
+  The 2026-11-16 log recorded `FINAL status=0 stage=transaction attempted=1
+  driver_release=0 clean=1` after a zero-status preflight, transaction and
+  Windows handoff. The 2026-11-11 run verified the pre-hardening wrapper
+  `96CBD5C2B006E37D6135F18347E023D674DD8E241D8A17B3DD3A07F5D4EC89D6`; earlier pairs apply to their recorded sources. The 10-26/11-03
+  builds used clang/lld-link 23.1.4; the 11-05/11-11/11-16 builds use the
+  pinned 20.1.8.
 - Measured cuBLAS GEMM n=4096, FP32 accumulate: FP16 109.8 and BF16 113.2
-  TFLOPS (locked 56.4/59.9); FP32 unchanged. One boot and one before/after
-  pair; S3/resume, repeated automatic cold boots, games/ComfyUI and long-term
-  stability remain unverified. This is not general RTX 3080 support.
+  TFLOPS (locked 56.4/59.9); FP32 unchanged. The 2026-10-26 benchmark used
+  one boot and one before/after pair; S3/resume, repeated automatic cold boots,
+  games/ComfyUI and long-term stability remain unverified. This is not general RTX 3080 support.
 - Added `tests/test_hardware_profiles.py` and source documentation. The
   Chinese-locale `bcdedit` identifier handling used by headless registration is
   included; the local observation-registration script is not part of this PR.

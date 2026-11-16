@@ -229,7 +229,7 @@ nvgop `60009`의 기존 검증 코드 해시 조합을 허용합니다. subsyste
 ## 프로필 7: Maxsun MS-Terminator B760M D4 / RTX 3080 LHR(aggregate console)
 
 [issue #28](https://github.com/impacifist/Windows-GPU-UNLOCK/issues/28)의 내부
-headless 실기기 결과 네 건입니다(2026-10-26~2026-11-11). Maxsun MS-Terminator B760M D4 BIOS H7.8G,
+headless 실기기 결과 다섯 건입니다(2026-10-26~2026-11-16). Maxsun MS-Terminator B760M D4 BIOS H7.8G,
 iGPU 없는 i5-12490F, RTX 3080 10GB LHR(GA102) 구성입니다. 펌웨어가 nvgop
 디스플레이 child를 표준 `EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER` open
 attribute(`0x8`)로 노출하고 AMI DevicePath consumer가
@@ -246,21 +246,23 @@ exact-machine 전용입니다.
 | PROM SHA256 | `88a6bce1bd790d3e4c542cccafbbd88a7ef73e2e0bef34310d7e8ed780e56d25` |
 | 메인보드 / BIOS | Maxsun MS-Terminator B760M D4 / H7.8G |
 | CPU | Intel Core i5-12490F (no iGPU) |
-| 기록한 Windows / 드라이버 | Windows 11 IoT Enterprise LTSC 26100 / NVIDIA 617.14 (2026-10-26), 621.14 (2026-11-11) |
+| 기록한 Windows / 드라이버 | Windows 11 IoT Enterprise LTSC 26100 / NVIDIA 617.14 (2026-10-26), 621.14 (2026-11-11), 621.24 (2026-11-16) |
 | UEFI / Secure Boot | x64 / 꺼짐 |
 | Selector 프로필 | `entryLatchedSs1Full`; SS0 목표 `0x88888888`, SS1 목표 `0x8` |
 
 각 실행은 언락 트랜잭션 1회, Windows 직접 시작, 화면 복귀를 기록했습니다.
-현재 소스의 child는 `218E2E4C1B65047EC43ED7D3BE10F779B715D01B3F419511CABC057FBCAE25B3`로 유지됩니다. 2026-11-11 실행은 hardening 이전
-wrapper `96CBD5C2B006E37D6135F18347E023D674DD8E241D8A17B3DD3A07F5D4EC89D6`를 검증했습니다. hardening wrapper는
-`1C18772A9BC82EE1D54ABEECAAE96302F794DACBD458E7332598E4481945DFED`로 빌드되며 자체 attended cold boot가 대기 중입니다.
-이전 pair는 2026-10-26 `64D887E4…`/`1265F152…`, 2026-11-03
-`476E5729…`/`4BCB8FCE…`, 2026-11-05 `9632EA21…`/`218E2E4C…`이며 각각 기록된
-소스에 해당합니다. 2026-10-26/11-03 빌드는 clang/lld-link 23.1.4, 2026-11-05/11-11
-빌드는 고정된 20.1.8을 사용했습니다.
+현재 소스의 검증 pair는 2026-11-16 wrapper
+`1C18772A9BC82EE1D54ABEECAAE96302F794DACBD458E7332598E4481945DFED`와 child `218E2E4C1B65047EC43ED7D3BE10F779B715D01B3F419511CABC057FBCAE25B3`입니다.
+2026-11-16 로그는 zero-status preflight, transaction, Windows handoff 후
+`FINAL status=0 stage=transaction attempted=1 driver_release=0 clean=1`을
+기록했습니다. 2026-11-11 실행은 hardening 이전 wrapper `96CBD5C2B006E37D6135F18347E023D674DD8E241D8A17B3DD3A07F5D4EC89D6`를
+검증했습니다. 이전 pair는 2026-10-26 `64D887E4…`/`1265F152…`, 2026-11-03
+`4BCB8FCE…`/`476E5729…`, 2026-11-05 `9632EA21…`/`218E2E4C…`이며 각각 기록된
+소스에 해당합니다. 2026-10-26/11-03 빌드는 clang/lld-link 23.1.4,
+2026-11-05/11-11/11-16 빌드는 고정된 20.1.8을 사용했습니다.
 cuBLAS GEMM n=4096, FP32 accumulation, 3회 중앙값은 FP16 109.8, BF16 113.2
 TFLOPS(locked 56.4/59.9)이고 FP32는 변화가 없었습니다. 각 실행은 한 번의 부팅과
-한 쌍의 before/after이며, 최신은 2026-11-11 실행입니다. S3/resume, 반복 자동
+한 쌍의 before/after이며, 최신은 2026-11-16 실행입니다. S3/resume, 반복 자동
 콜드 부팅, 게임/ComfyUI, 장기 안정성과 다른 RTX 3080은 미검증입니다.
 
 `research/headless/build-unlock.ps1 -HardwareProfile b760m-3080lhr`과
