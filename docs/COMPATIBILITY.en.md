@@ -203,8 +203,9 @@ Those tests remain blocked rather than accepting an inferred firmware layout.
 ## Profile 7: Maxsun MS-Terminator B760M D4 / RTX 3080 LHR (aggregate console)
 
 [Issue #28](https://github.com/impacifist/Windows-GPU-UNLOCK/issues/28) contributes
-one hardware-verified internal headless result on Maxsun MS-Terminator B760M D4
-BIOS H7.8G, i5-12490F (no iGPU) and an RTX 3080 10 GB LHR (GA102). The firmware
+hardware-verified internal headless results from four attended cold boots on
+Maxsun MS-Terminator B760M D4 BIOS H7.8G, i5-12490F (no iGPU) and an RTX 3080
+10 GB LHR (GA102). The firmware
 exposes the nvgop display child with the standard
 `EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER` open attribute (`0x8`) and an optional
 AMI DevicePath consumer; the `GU_TOPO_B760M` allowances handle those
@@ -220,20 +221,24 @@ differences. The profile remains exact-machine only.
 | PROM SHA256 | `88a6bce1bd790d3e4c542cccafbbd88a7ef73e2e0bef34310d7e8ed780e56d25` |
 | Motherboard / BIOS | Maxsun MS-Terminator B760M D4 / H7.8G |
 | CPU | Intel Core i5-12490F (no iGPU) |
-| Recorded Windows / driver | Windows 11 IoT Enterprise LTSC 26100 / NVIDIA 617.14 |
+| Recorded Windows / driver | Windows 11 IoT Enterprise LTSC 26100 / NVIDIA 617.14 (2026-10-26) and 621.14 (2026-11-11) |
 | UEFI / Secure Boot | x64 / disabled |
 | Selector profile | `entryLatchedSs1Full`; targets SS0 `0x88888888`, SS1 `0x8` |
 
-The verified run recorded one unlock transaction, a direct Windows handoff and
-display recovery. Installed wrapper SHA-256
-`64D887E4B8AD6BED5DABF2856C28AECADBB5E086B1FEAD791F178661EF381296`
-and child `1265F152BDBD1A65F94F19CD0433082F245A5C0340EF3A09968AC75F7ADD00AB`
-match a clean rebuild of the source. The build used clang/lld-link 23.1.4
-instead of the pinned 20.1.8.
+Each attended run recorded one unlock transaction, a direct Windows handoff and
+display recovery. The current source's verified pair is the 2026-11-11 wrapper
+`96CBD5C2B006E37D6135F18347E023D674DD8E241D8A17B3DD3A07F5D4EC89D6`
+and child `218E2E4C1B65047EC43ED7D3BE10F779B715D01B3F419511CABC057FBCAE25B3`.
+Earlier attended pairs are 2026-10-26 `64D887E4…`/`1265F152…`, 2026-11-03
+`476E5729…`/`4BCB8FCE…` and 2026-11-05 `9632EA21…`/`218E2E4C…`; each applies
+to its recorded source. The 2026-10-26 and 2026-11-03 builds used
+clang/lld-link 23.1.4; the 2026-11-05 and 2026-11-11 builds use the pinned
+20.1.8.
 
 Measured on the same cuBLAS GEMM protocol (n=4096, FP32 accumulation, three-run
 medians): FP16 109.8 TFLOPS and BF16 113.2 TFLOPS (locked 56.4/59.9); FP32 was
-unchanged. This is one boot and one before/after pair. S3 sleep invalidates the
+unchanged. Each run is one boot and one before/after pair; the latest is the
+2026-11-11 run. S3 sleep invalidates the
 unlock and there is no resume path; repeated automatic cold boots,
 games/ComfyUI, long-term stability and other RTX 3080 cards remain unverified.
 
@@ -285,7 +290,7 @@ Other 3070 PCI IDs, VBIOS/driver combinations and console layouts need separate 
 | Default automatic startup across repeated cold boots | Not established by the limited supervised runs |
 | Another RTX 3090, even a Founders Edition in another PC | Unverified; exact checks may reject |
 | Another ASUS BIOS, AMD board/CPU or Intel host | Unverified; separate profile and validation required |
-| CPU without iGPU (Intel host, aggregate console) | One contributor-reported profile above; still not generalized |
+| CPU without iGPU (Intel host, aggregate console) | Contributor-reported profiles 2, 6 and 7 above; still not generalized |
 | Multiple discrete GPUs, laptop/hybrid setup | Unverified |
 | Other NVIDIA models/architectures | Separate GPU port and validation required |
 | AMD Radeon / Intel discrete unlock target | No unlock implementation here |

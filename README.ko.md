@@ -54,6 +54,7 @@ PR에 남겨주세요. [커뮤니티 룰 — English](docs/DISCORD-RULES.en.md)�
 | **RTX 3070 8GB (2484 / GA104)** | 기여자 로컬 USB 성공 보고 · 실험적 자동 프로필 | [정확한 조건](docs/COMPATIBILITY.ko.md#로컬-프로필-성공-보고) |
 | **RTX 3070 Ti 8GB** | 실기기 성공 보고 · 내부 headless | [지원 구성](docs/COMPATIBILITY.ko.md#프로필-2-asus-tuf-b660m-e-d4--rtx-3070-tiaggregate-console) |
 | **RTX 3080 12GB (220a / GA102)** | 기여자 USB 성공; 좁은 실험적 LOCAL 허용, DP 복구 제한 포함 | [정확한 구성과 근거](evidence/b550-3080-12gb-local/README.ko.md) |
+| **RTX 3080 10GB LHR (2216 / GA102)** | 실기기 성공 보고 · 내부 headless · Maxsun B760M D4 전용 프로필(attended 4회) | [프로필 7](docs/COMPATIBILITY.ko.md#프로필-7-maxsun-ms-terminator-b760m-d4--rtx-3080-lhraggregate-console) |
 | **기타 RTX 3080 / RTX 3080 Ti** | 비공개/연구 성공 보고; 일반적인 upstream 지원 아님 | [구성 감사](docs/CONFIRMED-SETUPS.ko.md) |
 | **RTX 3090 FE 24GB** | 실기기 성공 기록 · 내부 headless · 기본 프로필 | [지원 구성](docs/COMPATIBILITY.ko.md#프로필-1-asus-tuf-b650m--rtx-3090-fe최초-검증) |
 | **RTX 3090 Ti 24GB** | 실기기 성공 보고 · 정확한 장비별 경로 확인 | [X870 USB](docs/COMPATIBILITY.ko.md#프로필-3-gigabyte-x870-aorus-elite-wifi7--rtx-3090-tiheadless-usb) · [B660M 내부](docs/COMPATIBILITY.ko.md#프로필-6-asus-tuf-b660m-e-d4--colorful-rtx-3090-ti내부) |
