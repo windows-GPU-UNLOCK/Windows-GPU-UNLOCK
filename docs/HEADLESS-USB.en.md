@@ -1,6 +1,6 @@
 # Headless unlock from a USB stick
 
-**English** | [README](../README.md) | [Internal headless guide](HEADLESS.en.md)
+**English** | [한국어](HEADLESS-USB.ko.md) | [README](../README.md) | [Internal headless guide](HEADLESS.en.md)
 
 The headless wrapper/child pair can run from an ordinary FAT32 USB stick instead
 of a dedicated internal ESP. No partition is created, resized or retyped, and no
@@ -107,7 +107,13 @@ normal Windows boot when you no longer use the stick:
 Resume-BitLocker -MountPoint "C:"
 ```
 
-The tools never change encryption settings. `stage-usb.ps1` only checks the state.
+The tools never change encryption settings. `stage-usb.ps1` only checks the state
+and fails closed: it continues only when protection is reported as off or
+suspended. If the state cannot be read or is not recognized, it stops before the
+first write. Elevated, it asks `Get-BitLockerVolume`; otherwise, or if that cmdlet
+is missing or fails, it reads the Windows shell's BitLocker property. If it stops
+with "could not be verified", rerun it from an elevated PowerShell and check
+`manage-bde -status C:`.
 Protection resumed or a suspension with a reboot count that has run out after
 staging is not detected at boot time.
 
@@ -140,3 +146,5 @@ BitLocker first (see above).
 Host tests: `internal-boot\boot\test-cold-precheck.ps1 -HardwareProfile <profile>`
 (no fixtures) and the headless app test with `-DGU_USB_MEDIA`, which also checks that
 a USB build loaded from an internal partition refuses before any hardware effect.
+`research\headless\test-stage-usb-bitlocker.ps1` checks the BitLocker guard with
+mocked states.

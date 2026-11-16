@@ -5,6 +5,11 @@
 - `stage-usb.ps1` refuses before the first write while BitLocker protection on C:
   is active. Elevated, it reads `Get-BitLockerVolume`; otherwise the shell's
   BitLocker property. It never changes encryption settings.
+- The check fails closed: staging continues only for a recognized off or suspended
+  state. A missing (`$null`), locked/`Unknown` or unrecognized state stops with
+  "could not be verified" instead of reading as unprotected, on both the elevated
+  and the shell path. Host test: `research/headless/test-stage-usb-bitlocker.ps1`.
+- Korean BitLocker section in `docs/HEADLESS-USB.ko.md`.
 - Document in HEADLESS-USB why an active protector causes a silent power-off after
   a clean unlock: an invisible recovery prompt on the dark display (issue #125).
 - `stage-usb.ps1` is part of the LOCAL input digest, so older LOCAL evidence
