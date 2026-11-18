@@ -1,7 +1,7 @@
 {
   "_comment": "Hardware-proven envelope for generated local profiles. make-profile.py refuses any capture outside it. Widen an entry only in a reviewed change that cites new hardware evidence (docs/NEW-MACHINE.en.md).",
   "class_revision": "030000a1",
-  "probe_device_ids": ["220410de", "220310de", "248710de", "250410de", "248410de", "24c910de", "220a10de"],
+  "probe_device_ids": ["220410de", "220310de", "248710de", "250410de", "248410de", "24c910de", "220a10de", "221610de"],
   "chips": [
     {
       "chip": "b72000a1",
@@ -9,9 +9,10 @@
       "memory": [
         "6000",
         "5ff4",
-        "3000"
+        "3000",
+        "2800"
       ],
-      "pci_memory": {"220410de": ["6000", "5ff4"], "220310de": ["6000", "5ff4"], "220a10de": ["3000"]},
+      "pci_memory": {"220410de": ["6000", "5ff4"], "220310de": ["6000", "5ff4"], "220a10de": ["3000"], "221610de": ["2800"]},
       "nvgop": [
         {"version": "60008", "text_sha256": "6aad26e6909c9791dd0caba92d6658e9dfd8009aee80676002bf24ce2ad24d08"},
         {"version": "60010", "text_sha256": "615b37a708b1894e18d7fa60cfcdacaa4d8b598863a10b8103d231a595847b2b"},
@@ -21,14 +22,16 @@
       "pci_nvgop": {
         "220410de": [{"version": "60008", "text_sha256": "6aad26e6909c9791dd0caba92d6658e9dfd8009aee80676002bf24ce2ad24d08"}, {"version": "60010", "text_sha256": "615b37a708b1894e18d7fa60cfcdacaa4d8b598863a10b8103d231a595847b2b"}, {"version": "60009", "text_sha256": "d045cee2113e461c7c678ec21542b1d0f18356765c0fc6a0bf2dcf824088e011"}, {"version": "6000a", "text_sha256": "8924ba488419e5d82b524d10e8dd63bfe886f077026fae1a9cc03e25b920b276"}],
         "220310de": [{"version": "60008", "text_sha256": "6aad26e6909c9791dd0caba92d6658e9dfd8009aee80676002bf24ce2ad24d08"}, {"version": "60010", "text_sha256": "615b37a708b1894e18d7fa60cfcdacaa4d8b598863a10b8103d231a595847b2b"}, {"version": "60009", "text_sha256": "d045cee2113e461c7c678ec21542b1d0f18356765c0fc6a0bf2dcf824088e011"}],
-        "220a10de": [{"version": "60010", "text_sha256": "615b37a708b1894e18d7fa60cfcdacaa4d8b598863a10b8103d231a595847b2b"}]
+        "220a10de": [{"version": "60010", "text_sha256": "615b37a708b1894e18d7fa60cfcdacaa4d8b598863a10b8103d231a595847b2b"}],
+        "221610de": [{"version": "60008", "text_sha256": "6aad26e6909c9791dd0caba92d6658e9dfd8009aee80676002bf24ce2ad24d08"}, {"version": "60010", "text_sha256": "615b37a708b1894e18d7fa60cfcdacaa4d8b598863a10b8103d231a595847b2b"}, {"version": "60009", "text_sha256": "d045cee2113e461c7c678ec21542b1d0f18356765c0fc6a0bf2dcf824088e011"}, {"version": "6000a", "text_sha256": "8924ba488419e5d82b524d10e8dd63bfe886f077026fae1a9cc03e25b920b276"}]
       },
       "evidence": [
         "evidence/headless-handoff",
         "evidence/x870-3090ti-usb",
         "https://github.com/impacifist/Windows-GPU-UNLOCK/issues/73",
         "https://github.com/impacifist/Windows-GPU-UNLOCK/issues/102",
-        "https://github.com/impacifist/Windows-GPU-UNLOCK/issues/138"
+        "https://github.com/impacifist/Windows-GPU-UNLOCK/issues/138",
+        "evidence/asus-dark-hero-x570-3080"
       ]
     },
     {

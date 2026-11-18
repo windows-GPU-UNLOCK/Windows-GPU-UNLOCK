@@ -23,6 +23,7 @@ Source revisions, measurements, published artifact hashes and every audited issu
 | [#124](https://github.com/impacifist/Windows-GPU-UNLOCK/issues/124) | Gainward RTX 3090 24GB · `10de:2204` / `10b0:2204` | Gigabyte Z790 GAMING X AX / F15 / i7-13700K | LOCAL-220410de-220410b0-e4482647 USB. One logged transaction/Windows return; one capture after reset, only one full shutdown |
 | [#133](https://github.com/impacifist/Windows-GPU-UNLOCK/issues/133) | EVGA RTX 3090 Ti FTW3 Ultra 24GB · `10de:2203` / `3842:4985` | MSI PRO Z690-P DDR4 / A.20 / i7-12700K | LOCAL-220310de-49853842-79d1fad6 USB. Two logged USB boots; one manual and one default USB-first; Windows/display return |
 | [#136](https://github.com/impacifist/Windows-GPU-UNLOCK/issues/136) | MSI RTX 3090 SUPRIM 24GB · `10de:2204` / `1462:3882` | MSI MAG B650 TOMAHAWK WIFI / 1.A0 / Ryzen 7 7800X3D | LOCAL-220410de-38821462-a1201d9a USB. One logged full-shutdown transaction and both displays return; no tracked diff |
+| [#482](https://github.com/windows-GPU-UNLOCK/Windows-GPU-UNLOCK/pull/482) | ASUS RTX 3080 10GB LHR · `10de:2216` / `1043:8823` | ASUS ROG CROSSHAIR VIII DARK HERO / 5601 / Ryzen 9 5950X | LOCAL-221610de-88231043-96e72d6d USB. One logged clean full-shutdown transaction, Windows/display return, FP16/BF16 tensor +59% measured; nvgop 6000a text byte-identical to existing pin |
 
 ## New LOCAL coverage and historical fork candidates
 

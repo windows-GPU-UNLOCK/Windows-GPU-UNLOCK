@@ -145,7 +145,7 @@ def main():
     case('unproven chip', 'no hardware-proven profile',
          lambda w, d: sub(d[-1], r'^(mmio off=0x00000000 status=0x0+ value=0x)[0-9a-f]{8}', hexword(0xdead00a1)))
     case('unproven memory size', 'not hardware-proven',
-         lambda w, d: sub(d[-1], r'^(mmio off=0x001183a4 status=0x0+ value=0x)[0-9a-f]{8}', hexword(0x2800)))
+         lambda w, d: sub(d[-1], r'^(mmio off=0x001183a4 status=0x0+ value=0x)[0-9a-f]{8}', hexword(0x1000)))
     case('already unlocked', 'power-on state',
          lambda w, d: sub(d[-1], r'^(mmio off=0x0082381c status=0x0+ value=0x)[0-9a-f]{8}', hexword(0x88888888)))
     case('WPR2 already set', 'power-on state',
