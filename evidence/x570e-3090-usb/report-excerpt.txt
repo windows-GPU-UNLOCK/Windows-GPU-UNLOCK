@@ -1,0 +1,53 @@
+# Excerpt of AUTO000000/REPORT.TXT (child) and HLS000000.TXT (wrapper stage records only).
+# Omitted: the wrapper's handle/ownership graph, image/device path nodes and partition identifiers.
+
+## AUTO000000/REPORT.TXT
+BUILD MODE: AUTOMATIC INTERNAL UNLOCK; profile=entryLatchedSs1Full; Esc cancellation; all hardware gates retained.
+CHECK stage=secure-boot status=0
+CHECK stage=watchdog status=0
+PCI enumeration: status=0 handles=50
+PCI target matches=1 status=0
+config[00]=220410de 00100003 030000a1 00800010
+config[10]=fb000000 0000000c 00000070 0000000c
+config[20]=00000078 0000f001 00000000 38821462
+config[30]=fc000000 00000060 00000000 000001ff
+target BDF=0:11:0.0 checks=1 pm=0x60 pcie=0x78 msi=0x68 msix=0
+CHECK stage=target status=0
+CHECK stage=display status=0
+bar0 descriptor: type=0 granularity=32 min=0xfb000000 max=0xfbffffff length=0x1000000 translation=0
+CHECK stage=bar0 status=0
+live PROM hash matched=1
+CHECK stage=prom status=0
+cold state: chip=0xb72000a1 plm=0xffffff8f gfw=0x8b8f/0x3ff/0x10 WPR2_HI=0 SS0=0x50337103 SS1=0x6
+cold observed: profile=entryLatchedSs1Full chip=0xb72000a1 memory=0x6000 SS0=0x50337103 SS1=0x6
+entry selectors: latched_once=1 SS0=0x50337103 SS1=0x6 SS0target=0x88888888 SS1policy=full SS1target=0x8
+CHECK stage=diagnostic-cold-state status=0
+ownership: records=5 exclusive=1 status=0
+owner[0] protocol=3bc1b285 attributes=0x1 count=2 agent=... controller=0
+owner[1] protocol=09576e91 attributes=0x1 count=150 agent=... controller=0
+owner[2] protocol=09576e91 attributes=0x2 count=8 agent=... controller=...
+owner[3] protocol=09576e91 attributes=0x2 count=2 agent=... controller=...
+owner[4] protocol=4cf5b200 attributes=0x1 count=108 agent=... controller=0
+CHECK stage=ownership status=0
+CHECK stage=cold-state status=0
+asset verified: gpu-unlock/610.43.03/booter_load_ga102.bin bytes=61256 sha256=056cbc064a888f80717726c54d7f64fcd68044d123870c95a74f37f4975dcaa4
+asset verified: gpu-unlock/610.43.03/v67-ga102-610.43.03.bin bytes=64000 sha256=2a0aa1f86d0b6afff5214d641d87d46dc98ef06ed908ff05d0ddbad5ffb7e197
+asset verified: gpu-unlock/610.43.03/gsp_ga10x.bin bytes=84277400 sha256=572373620a37418f24dc16b5031c39338778c3257e48e8408de9a57291b24f3a
+asset verified: gpu-unlock/610.43.03/gsp_boot_ga102.bin bytes=24576 sha256=3df651acb174fd5f5561a1996965b192f50c5d763168446ed0d4ead19d895768
+asset verified: gpu-unlock/610.43.03/gsp_boot_desc_ga102.bin bytes=84 sha256=cc5a3fc1f4c47f2fe107b1b68f0176d8a448e6dec84b575e5560ccef5262bf15
+CHECK stage=assets status=0
+CHECK stage=arming status=0
+BME containment: attribute_status=0 hardware_status=0 command=0x3 cached=0x300 pending=0
+transaction result=0 containment=0 started=1 quiesced=1 fault=0 retained=0 maps=0 FLR=1
+FINAL status=0 stage=transaction attempted=1 driver_release=0 clean=1
+
+## HLS000000.TXT (wrapper stage records, tail)
+post-FLR SEC2 reset released, GSP halted, BME=0 pending=0 WPR2=1ffffe00:00000000 SS0=88888888 SS1=00000008
+capture-complete=1
+full-preparation-result status=0x0000000000000000
+automatic-unlock-start-Esc-cancels status=0x0000000000000000
+original-unlock-return status=0x0000000000000000
+full-windows-start status=0x0000000000000000
+windows-preclose-verify-begin status=0x0000000000000000
+verify-complete status=0x0000000000000000
+windows-close-files-next-then-final-verify-and-StartImage status=0x0000000000000000
