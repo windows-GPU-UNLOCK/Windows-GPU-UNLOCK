@@ -12,6 +12,9 @@ static EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE *Mode;
 static EFI_TIMESTAMP_PROTOCOL *Clock;
 static EFI_TIMESTAMP_PROPERTIES ClockProperties;
 static UINT32 Width,Height,ModeNumber;
+static EFI_GRAPHICS_OUTPUT_MODE_INFORMATION InitialInfo;
+static EFI_PHYSICAL_ADDRESS InitialFrameBuffer;
+static UINTN InitialFrameBufferSize;
 static UINTN PresentedFrames;
 static BOOLEAN Visible;
 static UINT64 Stamp(VOID){return Clock?Clock->GetTimestamp():0;}
@@ -33,7 +36,10 @@ static VOID FindClock(VOID){
 static BOOLEAN Geometry(VOID) {
  return Visible&&Gop&&Gop->Mode==Mode&&Mode->Info&&
         Mode->SizeOfInfo>=sizeof(*Mode->Info)&&Mode->Mode==ModeNumber&&
-        Mode->Info->HorizontalResolution==Width&&Mode->Info->VerticalResolution==Height;
+        Mode->Info->HorizontalResolution==Width&&Mode->Info->VerticalResolution==Height&&
+        Mode->Info->PixelFormat==InitialInfo.PixelFormat&&
+        Mode->Info->PixelsPerScanLine==InitialInfo.PixelsPerScanLine&&
+        Mode->FrameBufferBase==InitialFrameBuffer&&Mode->FrameBufferSize==InitialFrameBufferSize;
 }
 #define MATRIX_WIDTH 1920U
 #define MATRIX_HEIGHT 1080U
@@ -385,6 +391,9 @@ EFI_STATUS GuBootSplashBegin(EFI_SYSTEM_TABLE *table, EFI_FILE_PROTOCOL *volume)
   Width=Mode->Info->HorizontalResolution;
   Height=Mode->Info->VerticalResolution;
   ModeNumber=Mode->Mode;
+  InitialInfo=*Mode->Info;
+  InitialFrameBuffer=Mode->FrameBufferBase;
+  InitialFrameBufferSize=Mode->FrameBufferSize;
   if(Width>8192||Height>4320||Mode->Info->PixelFormat>PixelBltOnly)status=EFI_UNSUPPORTED;
  }
  if(status==EFI_SUCCESS)status=MatrixLoad();

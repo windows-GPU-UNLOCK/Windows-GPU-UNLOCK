@@ -38,3 +38,21 @@ Missing or invalid assets, unsupported displays and an unavailable timestamp
 protocol fall back to the existing prompt. This is an experimental option
 for the firmware's manual boot menu. The log reports the selected copy path,
 viewport width and number of countdown frames presented.
+
+Run the CPU-only player tests with Clang, Python and the Visual Studio C++
+build tools installed:
+
+```powershell
+.\research\headless\test-splash.ps1 -Clang clang -Python python
+```
+
+The runner builds the production player in an isolated temporary directory
+using a synthetic LZ4 asset generated with the Python standard library.
+It simulates UEFI file, memory, GOP, timestamp, keyboard and timer services.
+Cases cover malformed headers and frames, hash/length pins, short reads,
+allocation failures, pixel formats, changing video geometry, cancellation,
+timer failures and resource cleanup. All framebuffer writes target guarded
+RAM buffers, including the 4K and ultrawide paths. Malformed first and later
+frames are also exercised with valid build-time hashes. After teardown,
+the tests require zero graphics callbacks. Physical boot and GPU behavior
+require separate validation.
