@@ -7,6 +7,9 @@
 #include <Guid/FileInfo.h>
 #include "media.h"
 #include "flow.h"
+#ifdef GU_BOOT_SPLASH
+#include "boot-splash.h"
+#endif
 #ifdef GU_HEADLESS_RESEARCH
 #include "build/headless/child-contract.h"
 #elif defined(GU_AUTOMATIC_BOOT)
@@ -168,7 +171,11 @@ static EFI_STATUS OpenLog(VOID) {
 static EFI_STATUS Record(VOID *Context,const char *Event,EFI_STATUS Status) {
   (void)Context;char text[160];UINTN n=0;
 #ifdef GU_FULL_UNLOCK
-  if(Status!=EFI_SUCCESS)ScreenStatus(Event,Status);
+  if(Status!=EFI_SUCCESS
+#ifdef GU_BOOT_SPLASH
+     && !GuBootSplashVisible()
+#endif
+  )ScreenStatus(Event,Status);
 #endif
   if(!Log)return EFI_DEVICE_ERROR;
   while(*Event && n<100)text[n++]=*Event++;
@@ -277,6 +284,17 @@ static EFI_STATUS Unlock(VOID *Context) {
 static EFI_STATUS FullChoice(VOID *Context,BOOLEAN *Skip) {
   (void)Context;*Skip=FALSE;
   if(!Table->ConIn || !Table->ConIn->ReadKeyStroke)return EFI_UNSUPPORTED;
+#ifdef GU_BOOT_SPLASH
+  if(GuBootSplashBegin(Table,Root)==EFI_SUCCESS) {
+    EFI_STATUS s=Record(NULL,"boot-splash-direct",(EFI_STATUS)GuBootSplashDirect());
+    if(s==EFI_SUCCESS)(void)Record(NULL,"boot-splash-width",(EFI_STATUS)GuBootSplashWidth());
+    UINTN before=GuBootSplashFrames();
+    if(s==EFI_SUCCESS)s=GuBootSplashPlay(TRUE,Skip);
+    if(s==EFI_SUCCESS)s=Record(NULL,"boot-splash-countdown-frames",(EFI_STATUS)(GuBootSplashFrames()-before));
+    if(s!=EFI_SUCCESS||*Skip){EFI_STATUS closed=GuBootSplashEnd();return s==EFI_SUCCESS?closed:s;}
+  } else
+#endif
+  {
 #ifdef GU_HEADLESS_RESEARCH
   Say(L"SINGLE RTX HEADLESS UNLOCK RESEARCH: one guarded attempt, then Windows.\r\nNo key required. Esc within 5 seconds skips all changes.\r\nScreen may stop updating. Errors stop without reset/retry; power off and F8 Windows Boot Manager.\r\n");
 #elif defined(GU_AUTOMATIC_BOOT)
@@ -294,6 +312,7 @@ static EFI_STATUS FullChoice(VOID *Context,BOOLEAN *Skip) {
     if(s!=EFI_SUCCESS && s!=EFI_NOT_READY)return s;
     s=Table->BootServices->Stall(100000);if(s!=EFI_SUCCESS)return s;
   }
+  }
   /* Before any release: a GPU that is not in its power-on state (warm restart,
    * already unlocked) would only fail VerifyCold after the display is gone.
    * Skip instead, so Windows starts with nothing changed. */
@@ -303,6 +322,9 @@ static EFI_STATUS FullChoice(VOID *Context,BOOLEAN *Skip) {
   if(r==EFI_SUCCESS)r=Record(NULL,"pre-release-cold-ss0",cold[6]);
   if(r!=EFI_SUCCESS)return r;
   if(c!=EFI_SUCCESS) {
+#ifdef GU_BOOT_SPLASH
+    EFI_STATUS closed=GuBootSplashEnd();if(closed!=EFI_SUCCESS)return closed;
+#endif
     Say(L"GPU cold-state prerequisites could not be verified.\r\nStarting Windows without driver release or unlock. Check the pre-release log before another attempt.\r\n");
     *Skip=TRUE;
   }
@@ -311,6 +333,14 @@ static EFI_STATUS FullChoice(VOID *Context,BOOLEAN *Skip) {
 static EFI_STATUS FullCapture(VOID *Context) {(void)Context;return GuCaptureGraphOnVolume(Table,Log,Root);}
 static BOOLEAN ReleaseStarted;
 static EFI_STATUS FullRelease(VOID *Context) {
+#ifdef GU_BOOT_SPLASH
+  if(GuBootSplashVisible()){
+    BOOLEAN skip=FALSE;
+    EFI_STATUS s=GuBootSplashPlay(FALSE,&skip);
+    if(s!=EFI_SUCCESS){(void)GuBootSplashEnd();return s;}
+  }
+  EFI_STATUS closed=GuBootSplashEnd();if(closed!=EFI_SUCCESS)return closed;
+#endif
   ReleaseStarted=TRUE;
 #ifdef GU_HEADLESS_RESEARCH
   ResearchOutputDisabled=TRUE;
@@ -430,6 +460,9 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE Image,EFI_SYSTEM_TABLE *St) {
 #else
   GU_HANDOFF_OPS ops={NULL,Prepare,Select,Record,Unlock,Windows};
   s=GuHandoffFlow(&ops);
+#endif
+#ifdef GU_BOOT_SPLASH
+  (void)GuBootSplashEnd();
 #endif
   (void)Record(NULL,"handoff-stopped",s);
 #ifdef GU_FULL_UNLOCK

@@ -3,7 +3,8 @@
 # child accept only the USB device they were loaded from instead of a pinned internal
 # ESP GUID. Builds files only: no staging, boot entries or firmware settings change.
 param([Parameter(Mandatory)][guid]$WindowsEspGuid,[string]$Clang='clang',[string]$LldLink='lld-link',[string]$Python='python',
- [ValidateSet('b650m-3090fe','b660m-3070ti','x870-3090ti','b660plus-3060','h610m-3060','local')][string]$HardwareProfile='b650m-3090fe')
+ [ValidateSet('b650m-3090fe','b660m-3070ti','x870-3090ti','b660plus-3060','h610m-3060','local')][string]$HardwareProfile='b650m-3090fe',
+ [string]$SplashAsset)
 $profiles=@{
  'b650m-3090fe'=@{Defines=@('-DGU_PROFILE_B650M_3090FE');Name='ASUS-TUF-B650M-PLUS-WIFI-3057-RTX3090-FE'}
  'b660m-3070ti'=@{Defines=@('-DGU_PROFILE_B660M_3070TI');Name='ASUS-TUF-GAMING-B660M-E-D4-4003-RTX3070TI'}
@@ -40,15 +41,27 @@ $cm=Get-Content (Join-Path $childDir 'build-manifest.json') -Raw | ConvertFrom-J
 $hash=(Get-FileHash -LiteralPath $child).Hash.ToLowerInvariant()
 if($cm.Mode -ne 'headless-research-automatic-internal-exact-card-unlock' -or $cm.EfiSha256 -ne $hash -or $cm.StockProfile -ne 'entryLatchedSs1Full' -or !$cm.CanArm -or
    $cm.HardwareProfile -ne $hw.Name -or $cm.Defines -notcontains '-DGU_USB_MEDIA'){throw 'Headless USB child contract mismatch'}
+if($SplashAsset){$SplashAsset=(Resolve-Path -LiteralPath $SplashAsset).Path}
 Push-Location -LiteralPath $boot
 try {
  [void][IO.Directory]::CreateDirectory((Join-Path $PWD 'build/headless'))
  @('/* Local headless child contract; GPL-2.0-only. */',('#define GU_UNLOCK_SHA256 "'+$hash+'"'),('#define GU_UNLOCK_BYTES '+(Get-Item $child).Length)) | Set-Content build/headless/child-contract.h -Encoding ascii
  $sources=@('handoff.c','full-release.c','full-flow.c','diagnostic.c','../unlock/checks.c','../unlock/sha256.c','../efi_runtime.c')
+ $splashDefines=@()
+ if($SplashAsset){
+  $sourceAsset=(Resolve-Path -LiteralPath $SplashAsset).Path
+  $assetBytes=(Get-Item -LiteralPath $sourceAsset).Length
+  if($assetBytes -le 472 -or $assetBytes -gt (192MB+472)){throw 'Invalid splash asset size'}
+  $assetHash=(Get-FileHash -LiteralPath $sourceAsset).Hash.ToLowerInvariant()
+  @(('#define GU_SPLASH_BYTES '+$assetBytes),('#define GU_SPLASH_SHA256 "'+$assetHash+'"')) | Set-Content build/headless/splash-contract.h -Encoding ascii
+  $sources+='boot-splash.c'
+  $splashDefines+='-DGU_BOOT_SPLASH'
+ }
  $objects=@()
  foreach($source in $sources) {
+  $opt=if($source -eq 'boot-splash.c'){'-O2'}else{'-Os'}
   $obj='build/headless/'+[IO.Path]::GetFileNameWithoutExtension($source)+'.obj'
-  & $Clang -target x86_64-pc-windows-msvc -std=c11 -ffreestanding -fno-builtin -fno-stack-protector -mno-red-zone -fshort-wchar -Os -Wall -Wextra -Werror -DGU_HEADLESS_RESEARCH -DGU_SINGLE_RTX_CONSOLE -DGU_FULL_UNLOCK -DGU_AUTOMATIC_BOOT -DGU_USB_MEDIA @($hw.Defines) -I ../../deps/edk2/MdePkg/Include -I ../../deps/edk2/MdePkg/Include/X64 -c $source -o $obj
+  & $Clang -target x86_64-pc-windows-msvc -std=c11 -ffreestanding -fno-builtin -fno-stack-protector -mno-red-zone -fshort-wchar $opt -Wall -Wextra -Werror -DGU_HEADLESS_RESEARCH -DGU_SINGLE_RTX_CONSOLE -DGU_FULL_UNLOCK -DGU_AUTOMATIC_BOOT -DGU_USB_MEDIA @splashDefines @($hw.Defines) -I ../../deps/edk2/MdePkg/Include -I ../../deps/edk2/MdePkg/Include/X64 -c $source -o $obj
   if($LASTEXITCODE -ne 0){throw "Headless USB wrapper compile failed: $source"};$objects+=$obj
  }
  & $LldLink /nologo /nodefaultlib /subsystem:efi_application /entry:efi_main /machine:x64 /base:0 /dynamicbase /nxcompat /timestamp:0 /opt:ref /opt:icf /map:build/headless/HEADLESS.map /out:build/headless/HEADLESS.EFI @objects
@@ -66,6 +79,13 @@ try {
   $usbManifest.LocalProfileHeaderSha256=$local.HeaderSha256
   $usbManifest.LocalProfileTreeSha256=$localEvidence.TreeSha256
   $usbManifest.LocalProfileEvidenceSha256=$localEvidenceSha
+ }
+ if($SplashAsset){
+  $packed=Join-Path $PWD 'build/headless/SPLASH.BIN'
+  if($sourceAsset -ne $packed){Copy-Item -LiteralPath $sourceAsset -Destination $packed -Force}
+  if((Get-FileHash -LiteralPath $packed).Hash -ine $assetHash){throw 'Splash asset changed while building'}
+  $usbManifest.SplashSha256=$assetHash
+  $usbManifest.SplashBytes=$assetBytes
  }
  $usbManifest | ConvertTo-Json | Set-Content build/headless/usb-manifest.json -Encoding utf8
  Get-Content build/headless/usb-manifest.json
