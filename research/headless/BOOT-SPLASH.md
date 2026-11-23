@@ -34,6 +34,10 @@ Playback skips unchanged pixel groups and follows elapsed time, so slower
 firmware may present fewer frames. Graphics activity and allocations end
 before driver release.
 
+The decoder copies validated literals and repeated matches in 16-byte groups.
+The direct RGB565 converter processes four pixels together, including the
+2x path used for 4K output. These use the x86-64 SSE2 instruction baseline.
+
 Missing or invalid assets, unsupported displays and an unavailable timestamp
 protocol fall back to the existing prompt. This is an experimental option
 for the firmware's manual boot menu. The log reports the selected copy path,
@@ -56,3 +60,7 @@ RAM buffers, including the 4K and ultrawide paths. Malformed first and later
 frames are also exercised with valid build-time hashes. After teardown,
 the tests require zero graphics callbacks. Physical boot and GPU behavior
 require separate validation.
+
+Decoder cases include short overlapping patterns, long backreferences and
+copy tails. Vector color conversion is checked against the scalar reference
+for all 65,536 RGB565 values in both RGB and BGR layouts.

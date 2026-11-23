@@ -81,6 +81,10 @@ static BOOLEAN MatrixDecode(const UINT8 *source, UINTN bytes, UINT16 *pixels) {
   UINT8 token=*source++;
   UINTN literal=token>>4;
   if(!MatrixLength(&source,end,&literal)||literal>(UINTN)(end-source)||literal>capacity-written)return FALSE;
+  while(literal>=16){
+   __builtin_memcpy(output+written,source,16);
+   source+=16;written+=16;literal-=16;
+  }
   for(UINTN i=0;i<literal;i++)output[written++]=*source++;
   if(source==end)return written==capacity;
   if(end-source<2)return FALSE;
@@ -89,6 +93,16 @@ static BOOLEAN MatrixDecode(const UINT8 *source, UINTN bytes, UINT16 *pixels) {
   UINTN match=token&15U;
   if(!offset||offset>written||!MatrixLength(&source,end,&match)||match+4>capacity-written)return FALSE;
   match+=4;
+  /* Grow short repeated patterns before using non-overlapping vector copies.
+   * Each larger distance is a multiple of the original LZ4 backreference. */
+  while(offset<16&&match>=offset){
+   for(UINTN i=0;i<offset;i++)output[written+i]=output[written-offset+i];
+   written+=offset;match-=offset;offset*=2;
+  }
+  while(offset>=16&&match>=16){
+   __builtin_memcpy(output+written,output+written-offset,16);
+   written+=16;match-=16;
+  }
   for(UINTN i=0;i<match;i++){output[written]=output[written-offset];written++;}
  }
  return FALSE;
@@ -178,6 +192,7 @@ typedef struct {
  BOOLEAN Rgb;
 } MATRIX_FRAMEBUFFER;
 typedef UINT32 MATRIX_QUAD __attribute__((vector_size(16)));
+typedef UINT16 MATRIX_FOUR_WORDS __attribute__((vector_size(8)));
 
 /* Only the linear pixel surface explicitly exposed by the current GOP mode.
  * Leave hardware registers, PCI mappings and cache attributes alone. */
@@ -206,6 +221,17 @@ static UINT32 MatrixPacked(UINT16 color,BOOLEAN rgb) {
  return rgb?red|(green<<8)|(blue<<16):blue|(green<<8)|(red<<16);
 }
 
+static MATRIX_QUAD MatrixPackedFour(const UINT16 *source,BOOLEAN rgb) {
+ MATRIX_FOUR_WORDS words;
+ __builtin_memcpy(&words,source,sizeof(words));
+ MATRIX_QUAD colors=__builtin_convertvector(words,MATRIX_QUAD);
+ MATRIX_QUAD red=colors>>11,green=(colors>>5)&63U,blue=colors&31U;
+ red=(red<<3)|(red>>2);
+ green=(green<<2)|(green>>4);
+ blue=(blue<<3)|(blue>>2);
+ return rgb?red|(green<<8)|(blue<<16):blue|(green<<8)|(red<<16);
+}
+
 static VOID MatrixWriteFramebuffer(const MATRIX_FRAMEBUFFER *surface,BOOLEAN delta) {
  for(UINTN y=0;y<MATRIX_HEIGHT;y++){
   const UINT16 *row=MatrixCurrent+y*MATRIX_WIDTH;
@@ -218,10 +244,7 @@ static VOID MatrixWriteFramebuffer(const MATRIX_FRAMEBUFFER *surface,BOOLEAN del
     if(i==16)continue;
    }
    for(UINTN i=x;i<x+16;i+=4){
-    MATRIX_QUAD pixels={
-     MatrixPacked(row[i],surface->Rgb),MatrixPacked(row[i+1],surface->Rgb),
-     MatrixPacked(row[i+2],surface->Rgb),MatrixPacked(row[i+3],surface->Rgb)
-    };
+    MATRIX_QUAD pixels=MatrixPackedFour(row+i,surface->Rgb);
     __builtin_nontemporal_store(pixels,(volatile MATRIX_QUAD *)(destination+i*4U));
    }
   }
@@ -247,11 +270,14 @@ static VOID MatrixWriteDouble(const MATRIX_FRAMEBUFFER *surface,BOOLEAN delta) {
     while(i<16&&row[x+i]==previous[x+i])i++;
     if(i==16)continue;
    }
-   for(UINTN i=x;i<x+16;i+=2){
-    UINT32 first=MatrixPacked(row[i],surface->Rgb),second=MatrixPacked(row[i+1],surface->Rgb);
-    MATRIX_QUAD pixels={first,first,second,second};
-    __builtin_nontemporal_store(pixels,(volatile MATRIX_QUAD *)(top+i*8U));
-    __builtin_nontemporal_store(pixels,(volatile MATRIX_QUAD *)(bottom+i*8U));
+   for(UINTN i=x;i<x+16;i+=4){
+    MATRIX_QUAD colors=MatrixPackedFour(row+i,surface->Rgb);
+    MATRIX_QUAD first=__builtin_shufflevector(colors,colors,0,0,1,1);
+    MATRIX_QUAD second=__builtin_shufflevector(colors,colors,2,2,3,3);
+    __builtin_nontemporal_store(first,(volatile MATRIX_QUAD *)(top+i*8U));
+    __builtin_nontemporal_store(first,(volatile MATRIX_QUAD *)(bottom+i*8U));
+    __builtin_nontemporal_store(second,(volatile MATRIX_QUAD *)(top+i*8U+16U));
+    __builtin_nontemporal_store(second,(volatile MATRIX_QUAD *)(bottom+i*8U+16U));
    }
   }
  }

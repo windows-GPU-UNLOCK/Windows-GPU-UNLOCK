@@ -371,6 +371,56 @@ static void TestDecoder(void) {
     puts("PASS LZ4 decoding, overlap, truncation, backreferences and output guards");
 }
 
+static UINTN WriteLength(UINT8 *destination, UINTN length) {
+    UINTN bytes = 0;
+    while (length >= 255) { destination[bytes++] = 255; length -= 255; }
+    destination[bytes++] = (UINT8)length;
+    return bytes;
+}
+
+static void CheckRepeatedBlock(UINTN literal, UINTN distance, UINTN match) {
+    const UINTN capacity = MATRIX_PIXELS * 2U;
+    UINT8 *encoded = malloc(capacity + capacity / 255U + 32U);
+    UINT8 *decoded = Guarded(capacity);
+    Check(encoded != NULL && literal + match + 5 == capacity && match >= 4,
+          "valid independent LZ4 reference case");
+    UINTN size = 0;
+    encoded[size++] = (UINT8)(((literal < 15 ? literal : 15) << 4) | (match < 19 ? match - 4 : 15));
+    if (literal >= 15) size += WriteLength(encoded + size, literal - 15);
+    for (UINTN index = 0; index < literal; index++) encoded[size++] = (UINT8)((index % distance) * 37U);
+    encoded[size++] = (UINT8)distance;
+    encoded[size++] = (UINT8)(distance >> 8);
+    if (match >= 19) size += WriteLength(encoded + size, match - 19);
+    encoded[size++] = 0x50;
+    for (UINTN index = capacity - 5; index < capacity; index++) encoded[size++] = (UINT8)((index % distance) * 37U);
+    Check(MatrixDecode(encoded, size, (UINT16 *)decoded), "decode repeated block across copy boundaries");
+    UINTN index = 0;
+    while (index < capacity && decoded[index] == (UINT8)((index % distance) * 37U)) index++;
+    Check(index == capacity, "all decoded bytes equal independently generated periodic data");
+    CheckGuard(decoded, capacity);
+    free(encoded); free(decoded - 16);
+}
+
+static void TestVectorCopies(void) {
+    const UINTN distances[] = {1,2,3,5,7,8,9,15,16,17,24,31,32,33,63,64,127,255,256,4095,4096,65535};
+    for (UINTN index = 0; index < sizeof(distances) / sizeof(distances[0]); index++) {
+        UINTN distance = distances[index];
+        CheckRepeatedBlock(distance, distance, MATRIX_PIXELS * 2U - distance - 5U);
+    }
+    const UINTN matches[] = {4,5,7,8,15,16,17,31,32,33};
+    for (UINTN index = 0; index < sizeof(matches) / sizeof(matches[0]); index++)
+        CheckRepeatedBlock(MATRIX_PIXELS * 2U - matches[index] - 5U, 3, matches[index]);
+    for (UINTN color = 0; color < 65536; color += 4) {
+        UINT16 words[] = {(UINT16)color, (UINT16)(color + 1), (UINT16)(color + 2), (UINT16)(color + 3)};
+        MATRIX_QUAD rgb = MatrixPackedFour(words, TRUE), bgr = MatrixPackedFour(words, FALSE);
+        for (UINTN index = 0; index < 4; index++) {
+            Check(rgb[index] == MatrixPacked(words[index], TRUE) && bgr[index] == MatrixPacked(words[index], FALSE),
+                  "vector conversion preserves every RGB565 color in both output layouts");
+        }
+    }
+    puts("PASS repeated-pattern distances, vector-copy tails and all 65536 RGB565 colors");
+}
+
 static void TestPlayback(void) {
     Setup(1920, 1080);
     Check(GuBootSplashBegin(&System, &Volume) == EFI_SUCCESS, "start playback");
@@ -534,6 +584,7 @@ int main(int argc, char **argv) {
     }
     TestFiles();
     TestDecoder();
+    TestVectorCopies();
     TestPlayback();
     TestGraphics();
     TestLargeDisplays();
